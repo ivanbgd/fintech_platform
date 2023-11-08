@@ -16,8 +16,17 @@ and serve as the foundation for additional future financial products.
 
 You’ll build an interactive command line program that will constitute the core accounting structure
 for setting up accounts and manipulating data.
+
 You’ll create a matching engine that enables traders to find the best trading partners
 and showcases the blazing-fast core of the exchange platform.
+
 You’ll extend your Rust HTTP API by setting up a warp web service that will interact with
 an additional trading platform, by building a shared marketplace that will be a blueprint for
 additional Rust web services, small and large.
+
+## Notes
+ - My implementation is a much improved version of the project's requirements and starter code.
+   For example:
+    - My implementation contains a much improved version of the matching engine, which is heavily-documented.  
+      Additionally, the matching engine contains a vast amount of unit tests.
+    - I have generally added more unit tests than required, for various parts of the application.
