@@ -241,9 +241,9 @@ fn send(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
             let txs = accounts.send(sender, recipient, amount);
             println!("{:?}", txs);
             if txs.is_ok() {
-                let (tx_deposit, tx_withdraw) = txs.expect("Failed to unpack the txs tuple.");
-                ledger.push(tx_deposit);
+                let (tx_withdraw, tx_deposit) = txs.expect("Failed to unpack the txs tuple.");
                 ledger.push(tx_withdraw);
+                ledger.push(tx_deposit);
             }
         }
     } else {

@@ -61,9 +61,9 @@ impl TradingPlatform {
     ///
     /// Both sides are combined together.
     ///
-    /// Sorted by price points; `rev` is for descending order.
+    /// Sorted first by price points; `rev` is for descending order.
     ///
-    /// Inside a price point, ordered by ordinal sequence number.
+    /// Inside of a price point, ordered by the ordinal sequence number.
     pub fn order_book_by_price(&self, rev: bool) -> Vec<PartialOrder> {
         let mut asks = self.matching_engine.asks.clone();
         let mut bids = self.matching_engine.bids.clone();
@@ -112,17 +112,21 @@ impl TradingPlatform {
 
     ///
     pub fn balance_of(&mut self, signer: &str) -> Result<&u64, AccountingError> {
-        todo!();
+        self.accounts.balance_of(signer)
     }
 
     /// Deposit funds
     pub fn deposit(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
-        todo!();
+        let result = self.accounts.deposit(signer, amount)?;
+        self.tx_log.push(result.clone());
+        Ok(result)
     }
 
     /// Withdraw funds
     pub fn withdraw(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
-        todo!();
+        let result = self.accounts.withdraw(signer, amount)?;
+        self.tx_log.push(result.clone());
+        Ok(result)
     }
 
     /// Transfer funds between sender and recipient
@@ -132,13 +136,97 @@ impl TradingPlatform {
         recipient: &str,
         amount: u64,
     ) -> Result<(Tx, Tx), AccountingError> {
-        todo!();
+        let result = self.accounts.send(sender, recipient, amount)?;
+        let result_copy = result.clone();
+        let tx_withdraw = result_copy.0;
+        let tx_deposit = result_copy.1;
+        self.tx_log.push(tx_withdraw);
+        self.tx_log.push(tx_deposit);
+        Ok(result)
     }
 
     /// Process a given order and apply the outcome to the accounts involved.
+    ///
     /// Note that there are very few safeguards in place.
+    ///
+    /// The account from the order is expected to exist, regardless of its side.
+    /// If it doesn't exist, the [`AccountingError::AccountNotFound`] error is returned,
+    /// containing the order signer's account (name).
     pub fn process_order(&mut self, order: Order) -> Result<Receipt, AccountingError> {
-        self.matching_engine.process(order)
+        let order_signer = &order.signer.clone();
+        let account_balance = *self.balance_of(order_signer)?;
+
+        let order_side = order.side.clone();
+
+        // For Buy orders, guard for solvency, i.e., make sure the account has
+        // a sufficiently high balance to buy amount * price.
+        // A buyer puts the highest price that they are willing to pay,
+        // and if they find a cheaper deal, good for them.
+        // What matters is that they have enough funds in the worst case,
+        // and that's what we're checking here.
+        if order_side == Side::Buy {
+            let required_amount = order.get_initial_amount() * order.price;
+            if account_balance < required_amount {
+                return Err(AccountingError::AccountUnderFunded(
+                    order_signer.to_string(),
+                    required_amount,
+                ));
+            }
+        }
+
+        // Run the matching
+        let receipt = self.matching_engine.process(order)?;
+
+        // This is the total value of the order that was realized.
+        // Namely, in the Buy case, it can be lower than the worst case, which is good for the buyer.
+        // Conversely, in the Sell case, it can be higher than the worst case, which is good for the seller.
+        // It is not used anywhere, though.
+        let _total_realized: u64 = receipt
+            .matches
+            .iter()
+            .map(|po| {
+                (po.current_amount.checked_sub(po.remaining_amount))
+                    .expect("Current amount of a partial order less than its remaining amount!")
+                    .checked_mul(po.price)
+                    .expect("Product overflowed!")
+            })
+            .sum();
+
+        // Move funds in accordance with the trade requirements
+        match order_side {
+            Side::Buy => {
+                for po in &receipt.matches {
+                    self.send(
+                        order_signer,
+                        po.signer.as_str(),
+                        po.current_amount
+                            .checked_sub(po.remaining_amount)
+                            .expect(
+                                "Current amount of a partial order less than its remaining amount!",
+                            )
+                            .checked_mul(po.price)
+                            .expect("Product overflowed!"),
+                    )?;
+                }
+            }
+            Side::Sell => {
+                for po in &receipt.matches {
+                    self.send(
+                        po.signer.as_str(),
+                        order_signer,
+                        po.current_amount
+                            .checked_sub(po.remaining_amount)
+                            .expect(
+                                "Current amount of a partial order less than its remaining amount!",
+                            )
+                            .checked_mul(po.price)
+                            .expect("Product overflowed!"),
+                    )?;
+                }
+            }
+        }
+
+        Ok(receipt)
     }
 }
 
@@ -147,7 +235,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn process_order_requires_deposit_to_order() {
+    fn process_order_requires_for_the_sell_account_to_exist_to_be_able_to_order() {
         let mut trading_platform = TradingPlatform::new();
 
         assert_eq!(
@@ -159,7 +247,33 @@ mod tests {
     }
 
     #[test]
-    fn process_order_partially_match_order_updates_accounts() {
+    fn process_order_requires_for_the_buy_account_to_exist_to_be_able_to_order() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert_eq!(
+            trading_platform.process_order(Order::new(10, 1, Side::Buy, String::from("Alice"))),
+            Err(AccountingError::AccountNotFound("Alice".to_string()))
+        );
+        assert!(trading_platform.matching_engine.asks.is_empty());
+        assert!(trading_platform.matching_engine.bids.is_empty());
+    }
+
+    #[test]
+    fn process_order_checks_for_balance_in_buy_case_underfunded() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+
+        let alice_receipt =
+            trading_platform.process_order(Order::new(10, 11, Side::Buy, String::from("Alice")));
+        assert_eq!(
+            AccountingError::AccountUnderFunded("Alice".to_string(), 110),
+            alice_receipt.unwrap_err()
+        );
+    }
+
+    #[test]
+    fn process_order_partially_match_order_updates_accounts_seller_first_1() {
         let mut trading_platform = TradingPlatform::new();
 
         // Set up accounts
@@ -175,7 +289,7 @@ mod tests {
         let bob_receipt = trading_platform
             .process_order(Order::new(10, 2, Side::Buy, String::from("Bob")))
             .unwrap();
-
+        assert_eq!(2, bob_receipt.ordinal);
         assert_eq!(
             vec![PartialOrder {
                 price: 10,
@@ -187,7 +301,8 @@ mod tests {
             }],
             bob_receipt.matches,
         );
-        assert!(trading_platform.matching_engine.asks.is_empty());
+
+        assert_eq!(0, trading_platform.matching_engine.asks.len());
         assert_eq!(1, trading_platform.matching_engine.bids.len());
 
         // Check the account balances
@@ -196,7 +311,121 @@ mod tests {
     }
 
     #[test]
-    fn process_order_fully_match_order_updates_accounts() {
+    fn process_order_partially_match_order_updates_accounts_seller_first_2() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+
+        let alice_receipt = trading_platform
+            .process_order(Order::new(10, 2, Side::Sell, String::from("Alice")))
+            .unwrap();
+        assert_eq!(1, alice_receipt.ordinal);
+        assert!(alice_receipt.matches.is_empty());
+
+        let bob_receipt = trading_platform
+            .process_order(Order::new(10, 1, Side::Buy, String::from("Bob")))
+            .unwrap();
+        assert_eq!(2, bob_receipt.ordinal);
+        assert_eq!(
+            vec![PartialOrder {
+                price: 10,
+                current_amount: 2,
+                remaining_amount: 1,
+                side: Side::Sell,
+                signer: "Alice".to_string(),
+                ordinal: 1
+            }],
+            bob_receipt.matches,
+        );
+
+        assert_eq!(1, trading_platform.matching_engine.asks.len());
+        assert_eq!(0, trading_platform.matching_engine.bids.len());
+
+        // Check the account balances
+        assert_eq!(Ok(&110), trading_platform.accounts.balance_of("Alice"));
+        assert_eq!(Ok(&90), trading_platform.accounts.balance_of("Bob"));
+    }
+
+    #[test]
+    fn process_order_partially_match_order_updates_accounts_buyer_first_1() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+
+        let alice_receipt = trading_platform
+            .process_order(Order::new(10, 1, Side::Buy, String::from("Alice")))
+            .unwrap();
+        assert_eq!(1, alice_receipt.ordinal);
+        assert!(alice_receipt.matches.is_empty());
+
+        let bob_receipt = trading_platform
+            .process_order(Order::new(10, 2, Side::Sell, String::from("Bob")))
+            .unwrap();
+        assert_eq!(2, bob_receipt.ordinal);
+        assert_eq!(
+            vec![PartialOrder {
+                price: 10,
+                current_amount: 1,
+                remaining_amount: 0,
+                side: Side::Buy,
+                signer: "Alice".to_string(),
+                ordinal: 1
+            }],
+            bob_receipt.matches,
+        );
+
+        assert_eq!(1, trading_platform.matching_engine.asks.len());
+        assert_eq!(0, trading_platform.matching_engine.bids.len());
+
+        // Check the account balances
+        assert_eq!(Ok(&90), trading_platform.accounts.balance_of("Alice"));
+        assert_eq!(Ok(&110), trading_platform.accounts.balance_of("Bob"));
+    }
+
+    #[test]
+    fn process_order_partially_match_order_updates_accounts_buyer_first_2() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+
+        let alice_receipt = trading_platform
+            .process_order(Order::new(10, 2, Side::Buy, String::from("Alice")))
+            .unwrap();
+        assert_eq!(1, alice_receipt.ordinal);
+        assert!(alice_receipt.matches.is_empty());
+
+        let bob_receipt = trading_platform
+            .process_order(Order::new(10, 1, Side::Sell, String::from("Bob")))
+            .unwrap();
+        assert_eq!(2, bob_receipt.ordinal);
+        assert_eq!(
+            vec![PartialOrder {
+                price: 10,
+                current_amount: 2,
+                remaining_amount: 1,
+                side: Side::Buy,
+                signer: "Alice".to_string(),
+                ordinal: 1
+            }],
+            bob_receipt.matches,
+        );
+
+        assert_eq!(0, trading_platform.matching_engine.asks.len());
+        assert_eq!(1, trading_platform.matching_engine.bids.len());
+
+        // Check the account balances
+        assert_eq!(Ok(&90), trading_platform.accounts.balance_of("Alice"));
+        assert_eq!(Ok(&110), trading_platform.accounts.balance_of("Bob"));
+    }
+
+    #[test]
+    fn process_order_fully_match_order_updates_accounts_seller_first() {
         let mut trading_platform = TradingPlatform::new();
 
         // Set up accounts
@@ -212,7 +441,7 @@ mod tests {
         let bob_receipt = trading_platform
             .process_order(Order::new(10, 2, Side::Buy, String::from("Bob")))
             .unwrap();
-
+        assert_eq!(2, bob_receipt.ordinal);
         assert_eq!(
             vec![PartialOrder {
                 price: 10,
@@ -235,7 +464,46 @@ mod tests {
     }
 
     #[test]
-    fn process_order_fully_match_order_multi_match_updates_accounts() {
+    fn process_order_fully_match_order_updates_accounts_buyer_first() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+
+        let alice_receipt = trading_platform
+            .process_order(Order::new(10, 2, Side::Buy, String::from("Alice")))
+            .unwrap();
+        assert_eq!(1, alice_receipt.ordinal);
+        assert!(alice_receipt.matches.is_empty());
+
+        let bob_receipt = trading_platform
+            .process_order(Order::new(10, 2, Side::Sell, String::from("Bob")))
+            .unwrap();
+        assert_eq!(2, bob_receipt.ordinal);
+        assert_eq!(
+            vec![PartialOrder {
+                price: 10,
+                current_amount: 2,
+                remaining_amount: 0,
+                side: Side::Buy,
+                signer: "Alice".to_string(),
+                ordinal: 1
+            }],
+            bob_receipt.matches,
+        );
+
+        // A fully matched order doesn't remain in the book
+        assert!(trading_platform.matching_engine.asks.is_empty());
+        assert!(trading_platform.matching_engine.bids.is_empty());
+
+        // Check the account balances
+        assert_eq!(Ok(&80), trading_platform.accounts.balance_of("Alice"));
+        assert_eq!(Ok(&120), trading_platform.accounts.balance_of("Bob"));
+    }
+
+    #[test]
+    fn process_order_fully_match_order_multi_match_updates_accounts_sellers_first() {
         let mut trading_platform = TradingPlatform::new();
 
         // Set up accounts
@@ -258,7 +526,7 @@ mod tests {
         let bob_receipt = trading_platform
             .process_order(Order::new(10, 2, Side::Buy, String::from("Bob")))
             .unwrap();
-
+        assert_eq!(3, bob_receipt.ordinal);
         assert_eq!(
             vec![
                 PartialOrder {
@@ -292,7 +560,7 @@ mod tests {
     }
 
     #[test]
-    fn process_order_fully_match_order_no_self_match_updates_accounts() {
+    fn process_order_fully_match_order_no_self_match_updates_accounts_sellers_first() {
         let mut trading_platform = TradingPlatform::new();
 
         // Set up accounts
@@ -311,10 +579,10 @@ mod tests {
         assert_eq!(2, charlie_receipt.ordinal);
         assert!(charlie_receipt.matches.is_empty());
 
-        let bob_receipt = trading_platform
+        let alice_receipt = trading_platform
             .process_order(Order::new(10, 2, Side::Buy, String::from("Alice")))
             .unwrap();
-
+        assert_eq!(3, alice_receipt.ordinal);
         assert_eq!(
             vec![PartialOrder {
                 price: 10,
@@ -324,7 +592,7 @@ mod tests {
                 signer: "Charlie".to_string(),
                 ordinal: 2
             }],
-            bob_receipt.matches,
+            alice_receipt.matches,
         );
 
         // A fully matched order doesn't remain in the book
@@ -337,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn process_order_no_match_updates_accounts() {
+    fn process_order_no_match_doesnt_update_accounts_all_sellers() {
         let mut trading_platform = TradingPlatform::new();
 
         // Set up accounts
@@ -364,8 +632,69 @@ mod tests {
     }
 
     #[test]
+    fn process_order_no_match_doesnt_update_accounts_all_buyers() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+
+        let alice_receipt = trading_platform
+            .process_order(Order::new(10, 2, Side::Buy, String::from("Alice")))
+            .unwrap();
+        assert_eq!(1, alice_receipt.ordinal);
+        assert!(alice_receipt.matches.is_empty());
+
+        let bob_receipt = trading_platform
+            .process_order(Order::new(11, 2, Side::Buy, String::from("Bob")))
+            .unwrap();
+        assert_eq!(2, bob_receipt.ordinal);
+        assert!(bob_receipt.matches.is_empty());
+
+        assert_eq!(2, trading_platform.order_book(false, false).len());
+
+        // Check the account balances
+        assert_eq!(Ok(&100), trading_platform.accounts.balance_of("Alice"));
+        assert_eq!(Ok(&100), trading_platform.accounts.balance_of("Bob"));
+    }
+
+    #[test]
+    fn process_order_no_match_doesnt_update_accounts() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+
+        let alice_receipt = trading_platform
+            .process_order(Order::new(12, 2, Side::Sell, String::from("Alice")))
+            .unwrap();
+        assert_eq!(1, alice_receipt.ordinal);
+        assert!(alice_receipt.matches.is_empty());
+
+        let bob_receipt = trading_platform
+            .process_order(Order::new(11, 2, Side::Buy, String::from("Bob")))
+            .unwrap();
+        assert_eq!(2, bob_receipt.ordinal);
+        assert!(bob_receipt.matches.is_empty());
+
+        assert_eq!(2, trading_platform.order_book(false, false).len());
+
+        // Check the account balances
+        assert_eq!(Ok(&100), trading_platform.accounts.balance_of("Alice"));
+        assert_eq!(Ok(&100), trading_platform.accounts.balance_of("Bob"));
+    }
+
+    #[test]
     fn order_book_sorted_both_ways() {
         let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Charlie", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Donna", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Eleanor", 100).is_ok());
 
         trading_platform
             .process_order(Order::new(15, 1, Side::Sell, String::from("Alice")))
@@ -410,6 +739,13 @@ mod tests {
     #[test]
     fn order_book_by_price_sorted_both_ways() {
         let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Charlie", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Donna", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Eleanor", 100).is_ok());
 
         trading_platform
             .process_order(Order::new(15, 1, Side::Sell, String::from("Alice")))

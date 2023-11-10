@@ -72,6 +72,10 @@ impl MatchingEngine {
 
     /// Processes an [`Order`] and returns a [`Receipt`].
     ///
+    /// A receipt contains the order's ordinal sequence number (`u64`),
+    /// and a vector of fully- or partially-matched partial orders from the other side
+    /// of the order book (`Vec<PartialOrder>`).
+    ///
     /// Tries to match the `order` to the contents of the appropriate side of the order book.
     /// If a part of the order remains, it adds it to the order book for future matching.
     ///
@@ -87,7 +91,7 @@ impl MatchingEngine {
     ///
     /// It calls `match_order` which updates the `remaining_amount` field of the
     /// *already existing* `PartialOrder`s in the entry book, that we are trying to match
-    /// our `order` against.
+    /// our `order` with.
     pub fn process(&mut self, order: Order) -> Result<Receipt, AccountingError> {
         // We record every order, even if it turns out to be unmatched
         // at the moment of entering the order book or any time later when processed.
