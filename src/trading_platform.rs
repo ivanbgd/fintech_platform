@@ -235,6 +235,345 @@ mod tests {
     use super::*;
 
     #[test]
+    fn order_book_sorted_both_ways() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Charlie", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Donna", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Eleanor", 100).is_ok());
+
+        trading_platform
+            .process_order(Order::new(15, 1, Side::Sell, String::from("Alice")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(12, 3, Side::Buy, String::from("Bob")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(14, 2, Side::Sell, String::from("Charlie")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(10, 4, Side::Buy, String::from("Donna")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(14, 5, Side::Sell, String::from("Eleanor")))
+            .unwrap();
+
+        assert_eq!(5, trading_platform.order_book(false, true).len());
+
+        let mut expected = ["Alice", "Bob", "Charlie", "Donna", "Eleanor"];
+        assert_eq!(
+            expected,
+            trading_platform
+                .order_book(true, true)
+                .iter()
+                .map(|po| po.signer.as_str())
+                .collect::<Vec<_>>()
+                .as_slice()
+        );
+
+        expected.reverse();
+        assert_eq!(
+            expected.to_vec(),
+            trading_platform
+                .order_book(true, false)
+                .iter()
+                .map(|po| po.signer.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn order_book_by_price_sorted_both_ways() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up accounts
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Charlie", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Donna", 100).is_ok());
+        assert!(trading_platform.accounts.deposit("Eleanor", 100).is_ok());
+
+        trading_platform
+            .process_order(Order::new(15, 1, Side::Sell, String::from("Alice")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(12, 3, Side::Buy, String::from("Bob")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(14, 2, Side::Sell, String::from("Charlie")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(10, 4, Side::Buy, String::from("Donna")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(14, 5, Side::Sell, String::from("Eleanor")))
+            .unwrap();
+
+        assert_eq!(5, trading_platform.order_book_by_price(false).len());
+
+        let mut expected = ["Donna", "Bob", "Charlie", "Eleanor", "Alice"];
+        assert_eq!(
+            expected,
+            trading_platform
+                .order_book_by_price(false)
+                .iter()
+                .map(|po| po.signer.as_str())
+                .collect::<Vec<_>>()
+                .as_slice()
+        );
+
+        expected = ["Alice", "Charlie", "Eleanor", "Bob", "Donna"];
+        assert_eq!(
+            expected.to_vec(),
+            trading_platform
+                .order_book_by_price(true)
+                .iter()
+                .map(|po| po.signer.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn deposit_works() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert_eq!(
+            Ok(Tx::Deposit {
+                account: "Alice".to_string(),
+                amount: 100
+            }),
+            trading_platform.deposit("Alice", 100)
+        );
+
+        // Check the account balance
+        assert_eq!(Ok(&100), trading_platform.balance_of("Alice"));
+    }
+
+    #[test]
+    fn deposit_overflows() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", u64::MAX).is_ok());
+
+        assert_eq!(
+            AccountingError::AccountOverFunded("Alice".to_string(), 1),
+            trading_platform.deposit("Alice", 1).unwrap_err()
+        );
+
+        // Check the account balance
+        assert_eq!(Ok(&u64::MAX), trading_platform.balance_of("Alice"));
+    }
+
+    #[test]
+    fn deposit_multiple_works() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.deposit("Alice", 20).is_ok());
+
+        // Check the account balance
+        assert_eq!(Ok(&120), trading_platform.balance_of("Alice"));
+    }
+
+    #[test]
+    fn withdraw_works() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert_eq!(
+            Ok(Tx::Withdraw {
+                account: "Alice".to_string(),
+                amount: 30
+            }),
+            trading_platform.withdraw("Alice", 30)
+        );
+
+        // Check the account balance
+        assert_eq!(Ok(&70), trading_platform.balance_of("Alice"));
+    }
+
+    #[test]
+    fn withdraw_multiple_works() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.withdraw("Alice", 30).is_ok());
+        assert_eq!(
+            Ok(Tx::Withdraw {
+                account: "Alice".to_string(),
+                amount: 20
+            }),
+            trading_platform.withdraw("Alice", 20)
+        );
+
+        // Check the account balance
+        assert_eq!(Ok(&50), trading_platform.balance_of("Alice"));
+    }
+
+    #[test]
+    fn deposit_withdraw_multiple_works() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.withdraw("Alice", 30).is_ok());
+        assert!(trading_platform.deposit("Alice", 10).is_ok());
+        assert!(trading_platform.withdraw("Alice", 20).is_ok());
+
+        // Check the account balance
+        assert_eq!(Ok(&60), trading_platform.balance_of("Alice"));
+    }
+
+    #[test]
+    fn withdraw_err_doesnt_exist() {
+        let mut trading_platform = TradingPlatform::new();
+
+        let tx = trading_platform.withdraw("Alice", 30);
+
+        assert!(tx.is_err());
+        assert_eq!(
+            AccountingError::AccountNotFound("Alice".to_string()),
+            tx.unwrap_err()
+        );
+
+        assert_eq!(
+            AccountingError::AccountNotFound("Alice".to_string()),
+            trading_platform.balance_of("Alice").unwrap_err()
+        );
+    }
+
+    #[test]
+    fn withdraw_err_under_funded() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+
+        let tx = trading_platform.withdraw("Alice", 130);
+
+        assert!(tx.is_err());
+        assert_eq!(
+            AccountingError::AccountUnderFunded("Alice".to_string(), 130),
+            tx.unwrap_err()
+        );
+
+        assert_eq!(Ok(&100), trading_platform.balance_of("Alice"));
+    }
+
+    #[test]
+    fn send_ok() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.deposit("Bob", 50).is_ok());
+
+        let status = trading_platform.send("Alice", "Bob", 10);
+
+        assert!(status.is_ok());
+
+        assert_eq!(Ok(&90), trading_platform.balance_of("Alice"));
+        assert_eq!(Ok(&60), trading_platform.balance_of("Bob"));
+    }
+
+    #[test]
+    fn send_err_sender_doesnt_exist() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Bob", 50).is_ok());
+
+        let status = trading_platform.send("Alice", "Bob", 10);
+
+        assert_eq!(
+            AccountingError::AccountNotFound("Alice".to_string()),
+            status.unwrap_err()
+        );
+
+        assert_eq!(
+            AccountingError::AccountNotFound("Alice".to_string()),
+            trading_platform.balance_of("Alice").unwrap_err()
+        );
+        assert_eq!(Ok(&50), trading_platform.balance_of("Bob"));
+    }
+
+    #[test]
+    fn send_err_recipient_doesnt_exist() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+
+        let status = trading_platform.send("Alice", "Bob", 10);
+
+        assert_eq!(
+            AccountingError::AccountNotFound("Bob".to_string()),
+            status.unwrap_err()
+        );
+
+        assert_eq!(Ok(&100), trading_platform.balance_of("Alice"));
+        assert_eq!(
+            AccountingError::AccountNotFound("Bob".to_string()),
+            trading_platform.balance_of("Bob").unwrap_err()
+        );
+    }
+
+    #[test]
+    fn send_err_no_one_exists() {
+        let mut trading_platform = TradingPlatform::new();
+
+        let status = trading_platform.send("Alice", "Bob", 10);
+
+        assert_eq!(
+            AccountingError::AccountNotFound("Bob".to_string()),
+            status.unwrap_err()
+        );
+
+        assert_eq!(
+            AccountingError::AccountNotFound("Alice".to_string()),
+            trading_platform.balance_of("Alice").unwrap_err()
+        );
+        assert_eq!(
+            AccountingError::AccountNotFound("Bob".to_string()),
+            trading_platform.balance_of("Bob").unwrap_err()
+        );
+    }
+
+    #[test]
+    fn send_err_sender_under_funded() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.deposit("Bob", 50).is_ok());
+
+        let status = trading_platform.send("Alice", "Bob", 200);
+
+        assert_eq!(
+            AccountingError::AccountUnderFunded("Alice".to_string(), 200),
+            status.unwrap_err()
+        );
+
+        assert_eq!(Ok(&100), trading_platform.balance_of("Alice"));
+        assert_eq!(Ok(&50), trading_platform.balance_of("Bob"));
+    }
+
+    #[test]
+    fn send_err_recipient_over_funded() {
+        let mut trading_platform = TradingPlatform::new();
+
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.deposit("Bob", u64::MAX).is_ok());
+
+        let status = trading_platform.send("Alice", "Bob", 10);
+
+        assert_eq!(
+            AccountingError::AccountOverFunded("Bob".to_string(), 10),
+            status.unwrap_err()
+        );
+
+        assert_eq!(Ok(&100), trading_platform.balance_of("Alice"));
+        assert_eq!(Ok(&u64::MAX), trading_platform.balance_of("Bob"));
+    }
+
+    #[test]
     fn process_order_requires_for_the_sell_account_to_exist_to_be_able_to_order() {
         let mut trading_platform = TradingPlatform::new();
 
@@ -262,7 +601,7 @@ mod tests {
     fn process_order_checks_for_balance_in_buy_case_underfunded() {
         let mut trading_platform = TradingPlatform::new();
 
-        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
 
         let alice_receipt =
             trading_platform.process_order(Order::new(10, 11, Side::Buy, String::from("Alice")));
@@ -277,8 +616,8 @@ mod tests {
         let mut trading_platform = TradingPlatform::new();
 
         // Set up accounts
-        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
+        assert!(trading_platform.deposit("Alice", 100).is_ok());
+        assert!(trading_platform.deposit("Bob", 100).is_ok());
 
         let alice_receipt = trading_platform
             .process_order(Order::new(10, 1, Side::Sell, String::from("Alice")))
@@ -306,8 +645,8 @@ mod tests {
         assert_eq!(1, trading_platform.matching_engine.bids.len());
 
         // Check the account balances
-        assert_eq!(Ok(&110), trading_platform.accounts.balance_of("Alice"));
-        assert_eq!(Ok(&90), trading_platform.accounts.balance_of("Bob"));
+        assert_eq!(Ok(&110), trading_platform.balance_of("Alice"));
+        assert_eq!(Ok(&90), trading_platform.balance_of("Bob"));
     }
 
     #[test]
@@ -683,107 +1022,5 @@ mod tests {
         // Check the account balances
         assert_eq!(Ok(&100), trading_platform.accounts.balance_of("Alice"));
         assert_eq!(Ok(&100), trading_platform.accounts.balance_of("Bob"));
-    }
-
-    #[test]
-    fn order_book_sorted_both_ways() {
-        let mut trading_platform = TradingPlatform::new();
-
-        // Set up accounts
-        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Charlie", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Donna", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Eleanor", 100).is_ok());
-
-        trading_platform
-            .process_order(Order::new(15, 1, Side::Sell, String::from("Alice")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(12, 3, Side::Buy, String::from("Bob")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(14, 2, Side::Sell, String::from("Charlie")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(10, 4, Side::Buy, String::from("Donna")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(14, 5, Side::Sell, String::from("Eleanor")))
-            .unwrap();
-
-        assert_eq!(5, trading_platform.order_book(false, true).len());
-
-        let mut expected = ["Alice", "Bob", "Charlie", "Donna", "Eleanor"];
-        assert_eq!(
-            expected,
-            trading_platform
-                .order_book(true, true)
-                .iter()
-                .map(|po| po.signer.as_str())
-                .collect::<Vec<_>>()
-                .as_slice()
-        );
-
-        expected.reverse();
-        assert_eq!(
-            expected.to_vec(),
-            trading_platform
-                .order_book(true, false)
-                .iter()
-                .map(|po| po.signer.as_str())
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn order_book_by_price_sorted_both_ways() {
-        let mut trading_platform = TradingPlatform::new();
-
-        // Set up accounts
-        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Bob", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Charlie", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Donna", 100).is_ok());
-        assert!(trading_platform.accounts.deposit("Eleanor", 100).is_ok());
-
-        trading_platform
-            .process_order(Order::new(15, 1, Side::Sell, String::from("Alice")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(12, 3, Side::Buy, String::from("Bob")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(14, 2, Side::Sell, String::from("Charlie")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(10, 4, Side::Buy, String::from("Donna")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(14, 5, Side::Sell, String::from("Eleanor")))
-            .unwrap();
-
-        assert_eq!(5, trading_platform.order_book_by_price(false).len());
-
-        let mut expected = ["Donna", "Bob", "Charlie", "Eleanor", "Alice"];
-        assert_eq!(
-            expected,
-            trading_platform
-                .order_book_by_price(false)
-                .iter()
-                .map(|po| po.signer.as_str())
-                .collect::<Vec<_>>()
-                .as_slice()
-        );
-
-        expected = ["Alice", "Charlie", "Eleanor", "Bob", "Donna"];
-        assert_eq!(
-            expected.to_vec(),
-            trading_platform
-                .order_book_by_price(true)
-                .iter()
-                .map(|po| po.signer.as_str())
-                .collect::<Vec<_>>()
-        );
     }
 }

@@ -1,5 +1,5 @@
 use crate::core::{Order, PartialOrder, Receipt, Side};
-use crate::errors::AccountingError;
+use crate::errors::AccountingError; // This is NOT used explicitly anywhere in this file!
 use std::collections::{BTreeMap, BinaryHeap};
 
 /// **A FIFO matching engine**

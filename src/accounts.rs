@@ -20,8 +20,6 @@ impl Accounts {
         }
     }
 
-    // Todo: Rewrite `balance_of()` yourself!
-
     /// Retrieves the balance of an account
     pub fn balance_of(&self, signer: &str) -> Result<&u64, AccountingError> {
         self.accounts
@@ -164,23 +162,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn deposit_ok() {
+    fn deposit_multiple_ok() {
         let mut accounts = Accounts::new();
         let client = "Alice";
 
         let mut tx = accounts.deposit(client, 25);
         assert!(tx.is_ok());
         assert_eq!(
-            tx,
             Ok(Tx::Deposit {
                 account: client.to_string(),
                 amount: 25
-            })
+            }),
+            tx,
         );
         assert_eq!(&25, accounts.accounts.get(client).unwrap());
 
         tx = accounts.deposit(client, 50);
         assert!(tx.is_ok());
+        assert_eq!(
+            Tx::Deposit {
+                account: client.to_string(),
+                amount: 50
+            },
+            tx.unwrap(),
+        );
+
         assert_eq!(&75, accounts.accounts.get(client).unwrap());
     }
 
@@ -196,24 +202,40 @@ mod tests {
         tx = accounts.deposit(client, 10);
         assert!(tx.is_err());
         assert_eq!(
-            tx,
-            Err(AccountingError::AccountOverFunded(client.to_string(), 10))
+            Err(AccountingError::AccountOverFunded(client.to_string(), 10)),
+            tx
         );
+
         assert_eq!(&(u64::MAX), accounts.accounts.get(client).unwrap());
     }
 
     #[test]
-    fn withdraw_ok() {
+    fn withdraw_multiple_ok() {
         let mut accounts = Accounts::new();
         let client = "Charlie";
 
         let _ = accounts.deposit(client, 25);
         let tx = accounts.withdraw(client, 5);
         assert!(tx.is_ok());
+        assert_eq!(
+            Ok(Tx::Withdraw {
+                account: client.to_string(),
+                amount: 5,
+            }),
+            tx
+        );
         assert_eq!(&20, accounts.accounts.get(client).unwrap());
 
         let tx = accounts.withdraw(client, 20);
         assert!(tx.is_ok());
+        assert_eq!(
+            Tx::Withdraw {
+                account: client.to_string(),
+                amount: 20,
+            },
+            tx.unwrap()
+        );
+
         assert_eq!(&0, accounts.accounts.get(client).unwrap());
     }
 
@@ -225,7 +247,20 @@ mod tests {
         let tx = accounts.withdraw(client, 100);
 
         assert!(tx.is_err());
+        assert_eq!(
+            Err(AccountingError::AccountNotFound(client.to_string())),
+            tx
+        );
+        assert_eq!(
+            AccountingError::AccountNotFound(client.to_string()),
+            tx.unwrap_err()
+        );
+
         assert!(accounts.accounts.get(client).is_none());
+        assert_eq!(
+            AccountingError::AccountNotFound(client.to_string()),
+            accounts.balance_of(client).unwrap_err()
+        );
     }
 
     #[test]
@@ -237,9 +272,10 @@ mod tests {
         let tx = accounts.withdraw(client, 125);
         assert!(tx.is_err());
         assert_eq!(
+            Err(AccountingError::AccountUnderFunded(client.to_string(), 125)),
             tx,
-            Err(AccountingError::AccountUnderFunded(client.to_string(), 125))
         );
+
         assert_eq!(&25, accounts.accounts.get(client).unwrap());
     }
 
@@ -255,8 +291,12 @@ mod tests {
         let status = accounts.send(sender, recipient, 10);
 
         assert!(status.is_ok());
+
         assert_eq!(&90, accounts.accounts.get(sender).unwrap());
         assert_eq!(&60, accounts.accounts.get(recipient).unwrap());
+
+        assert_eq!(&90, accounts.balance_of(sender).unwrap());
+        assert_eq!(&60, accounts.balance_of(recipient).unwrap());
     }
 
     #[test]
@@ -270,9 +310,13 @@ mod tests {
         let status = accounts.send(sender, recipient, 10);
 
         assert!(status.is_err());
-        assert_eq!(&50, accounts.accounts.get(recipient).unwrap());
+        assert_eq!(
+            AccountingError::AccountNotFound(sender.to_string()),
+            status.unwrap_err()
+        );
 
         assert!(accounts.accounts.get(sender).is_none());
+        assert_eq!(&50, accounts.accounts.get(recipient).unwrap());
     }
 
     #[test]
@@ -286,8 +330,32 @@ mod tests {
         let status = accounts.send(sender, recipient, 10);
 
         assert!(status.is_err());
-        assert_eq!(&100, accounts.accounts.get(sender).unwrap());
+        assert_eq!(
+            AccountingError::AccountNotFound(recipient.to_string()),
+            status.unwrap_err()
+        );
 
+        assert_eq!(&100, accounts.accounts.get(sender).unwrap());
+        assert!(accounts.accounts.get(recipient).is_none());
+    }
+
+    #[test]
+    fn send_err_no_one_exists() {
+        let mut accounts = Accounts::new();
+        let sender = "Alice";
+        let recipient = "Bob";
+
+        let status = accounts.send(sender, recipient, 10);
+
+        assert!(status.is_err());
+
+        // Recipient is checked first
+        assert_eq!(
+            AccountingError::AccountNotFound(recipient.to_string()),
+            status.unwrap_err()
+        );
+
+        assert!(accounts.accounts.get(sender).is_none());
         assert!(accounts.accounts.get(recipient).is_none());
     }
 
@@ -303,6 +371,11 @@ mod tests {
         let status = accounts.send(sender, recipient, 200);
 
         assert!(status.is_err());
+        assert_eq!(
+            AccountingError::AccountUnderFunded(sender.to_string(), 200),
+            status.unwrap_err()
+        );
+
         assert_eq!(&100, accounts.accounts.get(sender).unwrap());
         assert_eq!(&50, accounts.accounts.get(recipient).unwrap());
     }
@@ -319,6 +392,11 @@ mod tests {
         let status = accounts.send(sender, recipient, 10);
 
         assert!(status.is_err());
+        assert_eq!(
+            AccountingError::AccountOverFunded(recipient.to_string(), 10),
+            status.unwrap_err()
+        );
+
         assert_eq!(&100, accounts.accounts.get(sender).unwrap());
         assert_eq!(&u64::MAX, accounts.accounts.get(recipient).unwrap());
     }
