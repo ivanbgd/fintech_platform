@@ -47,8 +47,8 @@ fn help() {
 /// Signals an empty line so we can ignore it (in the main loop).
 ///
 /// # Panics
-/// Panics in case it can't write `label` to stdout,
-/// or if it can't flush the stdout buffer.
+/// Panics in case it can't write `label` to `stdout`,
+/// or if it can't flush the `stdout` buffer.
 fn read_from_stdin(label: &str) -> Option<String> {
     let mut lock = stdout().lock();
     write!(lock, "\n{label}").expect("Failed to write the label to stdout.");
@@ -66,7 +66,7 @@ fn read_from_stdin(label: &str) -> Option<String> {
             }
         }
         Err(err) => {
-            eprintln!("Failed to read line: {}", err);
+            eprintln!("[ERROR] Failed to read line: {}", err);
             None
         }
     }
@@ -91,7 +91,7 @@ pub fn is_valid_name(signer: &str) -> bool {
 /// This function can be converted into a macro.
 fn cannot_parse(word: &str) {
     eprintln!(
-        "Only non-negative integer numbers are allowed as the amount; you provided {}.",
+        "[ERROR] Only non-negative integer numbers are allowed as the amount; you provided '{}'.",
         word
     );
 }
@@ -112,7 +112,9 @@ fn cannot_parse(word: &str) {
 /// Prints a success or an error message depending on the status of the
 /// transaction, and records the transaction in the success case.
 ///
-/// An error can happen in the case the account would become over-funded.
+/// # Errors
+/// An error can happen in case the account would become over-funded.
+///
 /// We could pattern-match it for a different output format and the message
 /// contents, but haven't done that here. Error is still printed.
 fn deposit(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
@@ -129,8 +131,7 @@ fn deposit(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
     let amount = match words[words_len - 1].parse::<u64>() {
         Ok(amount) => amount,
         Err(_err) => {
-            // eprintln!("{}", _err);  // "invalid digit found in string"
-            cannot_parse(words[2]);
+            cannot_parse(words[words_len - 1]);
             return;
         }
     };
@@ -162,7 +163,9 @@ fn deposit(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
 /// Prints a success or an error message depending on the status of the
 /// transaction, and records the transaction in the success case.
 ///
+/// # Errors
 /// Potential errors are if the account doesn't exist, or if it is under-funded.
+///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
 fn withdraw(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
@@ -185,7 +188,7 @@ fn withdraw(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
             }
         }
     } else {
-        cannot_parse(words[2]);
+        cannot_parse(words[words_len - 1]);
     }
 }
 
@@ -212,9 +215,11 @@ fn withdraw(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
 /// Prints a success or an error message depending on the status of the
 /// transaction, and records the two transactions in the success case.
 ///
+/// # Errors
 /// Potential errors are if any of the two accounts doesn't exist,
 /// or if the sender's account is under-funded,
 /// or if the recipient's account would be over-funded.
+///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
 fn send(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
@@ -228,7 +233,7 @@ fn send(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
     let to_pos = words
         .iter()
         .position(|&r| r == SEPARATOR)
-        .expect(r#"The send command must contain "{SEPARATOR}"."#);
+        .expect(format!("The send command must contain '{}'.", SEPARATOR).as_str());
 
     let sender = words[1..to_pos].join(" ");
     let sender = sender.trim_matches(|c| c == '\'' || c == '\"').trim();
@@ -247,7 +252,7 @@ fn send(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
             }
         }
     } else {
-        cannot_parse(words[3]);
+        cannot_parse(words[words_len - 1]);
     }
 }
 

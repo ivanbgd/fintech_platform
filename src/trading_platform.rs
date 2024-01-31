@@ -152,8 +152,13 @@ impl TradingPlatform {
     /// The account from the order is expected to exist, regardless of its side.
     /// If it doesn't exist, the [`AccountingError::AccountNotFound`] error is returned,
     /// containing the order signer's account (name).
+    ///
+    /// # Errors
+    /// - Account has insufficient funds
     pub fn process_order(&mut self, order: Order) -> Result<Receipt, AccountingError> {
         let order_signer = &order.signer.clone();
+
+        // Make sure that the Order struct’s signer has an account
         let account_balance = *self.balance_of(order_signer)?;
 
         let order_side = order.side.clone();
@@ -185,7 +190,8 @@ impl TradingPlatform {
             .matches
             .iter()
             .map(|po| {
-                (po.current_amount.checked_sub(po.remaining_amount))
+                po.current_amount
+                    .checked_sub(po.remaining_amount)
                     .expect("Current amount of a partial order less than its remaining amount!")
                     .checked_mul(po.price)
                     .expect("Product overflowed!")
