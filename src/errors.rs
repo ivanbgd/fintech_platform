@@ -1,4 +1,4 @@
-/// An application-specific error type
+/// **An application-specific error type**
 #[derive(Debug, PartialEq)]
 pub enum AccountingError {
     AccountNotFound(String),

@@ -11,7 +11,7 @@ pub struct TradingPlatform {
 }
 
 impl TradingPlatform {
-    /// Creates a new instance without any data.
+    /// **Creates a new instance without any data.**
     pub fn new() -> Self {
         TradingPlatform {
             matching_engine: MatchingEngine::new(),
@@ -20,7 +20,7 @@ impl TradingPlatform {
         }
     }
 
-    /// Fetches the complete order book
+    /// **Fetches the complete order book**
     ///
     /// Both sides are combined together.
     ///
@@ -57,7 +57,7 @@ impl TradingPlatform {
         book
     }
 
-    /// Fetches the complete order book
+    /// **Fetches the complete order book**
     ///
     /// Both sides are combined together.
     ///
@@ -110,26 +110,41 @@ impl TradingPlatform {
         book
     }
 
+    /// **Retrieves the balance of an account**
     ///
+    /// # Errors
+    /// - Account doesn't exist, `AccountingError::AccountNotFound`
     pub fn balance_of(&mut self, signer: &str) -> Result<&u64, AccountingError> {
         self.accounts.balance_of(signer)
     }
 
-    /// Deposit funds
+    /// **Deposit funds**
+    ///
+    /// # Errors
+    /// - Attempted overflow (account over-funded), `AccountingError::AccountOverFunded`
     pub fn deposit(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
         let result = self.accounts.deposit(signer, amount)?;
         self.tx_log.push(result.clone());
         Ok(result)
     }
 
-    /// Withdraw funds
+    /// **Withdraw funds**
+    ///
+    /// # Errors
+    /// - Account doesn't exist, `AccountingError::AccountNotFound`;
+    /// - Attempted overflow (account under-funded), `AccountingError::AccountUnderFunded`.
     pub fn withdraw(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
         let result = self.accounts.withdraw(signer, amount)?;
         self.tx_log.push(result.clone());
         Ok(result)
     }
 
-    /// Transfer funds between sender and recipient
+    /// **Transfer funds between sender and recipient**
+    ///
+    /// # Errors
+    /// - Any of the two accounts doesn't exist, `AccountingError::AccountNotFound`;
+    /// - Attempted overflow (sender's account under-funded), `AccountingError::AccountUnderFunded`;
+    /// - Attempted overflow (recipient's account over-funded), `AccountingError::AccountOverFunded`.
     pub fn send(
         &mut self,
         sender: &str,
@@ -145,7 +160,7 @@ impl TradingPlatform {
         Ok(result)
     }
 
-    /// Process a given order and apply the outcome to the accounts involved.
+    /// **Process a given order and apply the outcome to the accounts involved.**
     ///
     /// Note that there are very few safeguards in place.
     ///
@@ -154,7 +169,9 @@ impl TradingPlatform {
     /// containing the order signer's account (name).
     ///
     /// # Errors
-    /// - Account has insufficient funds
+    /// - Account not found, `AccountingError::AccountNotFound`;
+    /// - Account has insufficient funds, `AccountingError::AccountUnderFunded`;
+    /// - Account would be over-funded, `AccountingError::AccountOverFunded`.
     pub fn process_order(&mut self, order: Order) -> Result<Receipt, AccountingError> {
         let order_signer = &order.signer.clone();
 
@@ -192,7 +209,7 @@ impl TradingPlatform {
             .map(|po| {
                 po.current_amount
                     .checked_sub(po.remaining_amount)
-                    .expect("Current amount of a partial order less than its remaining amount!")
+                    .expect("Current amount of a partial order is less than its remaining amount!")
                     .checked_mul(po.price)
                     .expect("Product overflowed!")
             })
@@ -208,7 +225,7 @@ impl TradingPlatform {
                         po.current_amount
                             .checked_sub(po.remaining_amount)
                             .expect(
-                                "Current amount of a partial order less than its remaining amount!",
+                                "Current amount of a partial order is less than its remaining amount!",
                             )
                             .checked_mul(po.price)
                             .expect("Product overflowed!"),
@@ -223,7 +240,7 @@ impl TradingPlatform {
                         po.current_amount
                             .checked_sub(po.remaining_amount)
                             .expect(
-                                "Current amount of a partial order less than its remaining amount!",
+                                "Current amount of a partial order is less than its remaining amount!",
                             )
                             .checked_mul(po.price)
                             .expect("Product overflowed!"),

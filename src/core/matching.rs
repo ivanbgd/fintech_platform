@@ -43,7 +43,7 @@ use std::collections::{BTreeMap, BinaryHeap};
 /// *Note:*
 /// The live project's implementation works in the opposite way than my implementation,
 /// but only in case of selling. The buying case works in the same way.
-/// But, this means that their implementation is asymmetrical.
+/// But, this means that their implementation is asymmetrical, and hence not fair.
 #[derive()]
 pub struct MatchingEngine {
     /// The order's unique ordinal (linear) sequence number.
@@ -92,6 +92,13 @@ impl MatchingEngine {
     /// It calls `match_order` which updates the `remaining_amount` field of the
     /// *already existing* `PartialOrder`s in the entry book, that we are trying to match
     /// our `order` with.
+    ///
+    /// # Returns
+    /// - `Ok(Receipt)`
+    ///
+    /// # Errors
+    /// - Doesn't return an error variant.
+    /// - The return type of `Result<Receipt, AccountingError>` was chosen for consistency with rest of code.
     pub fn process(&mut self, order: Order) -> Result<Receipt, AccountingError> {
         // We record every order, even if it turns out to be unmatched
         // at the moment of entering the order book or any time later when processed.
@@ -104,7 +111,7 @@ impl MatchingEngine {
         // This is the order that we get and that we are trying to find matches for
         // among the already existing orders in the order book.
         // We just convert into a partial order so that we have some metadata
-        // to help us with the matching process.
+        // to help us through the matching process.
         let mut partial_order = order.into_partial_order(self.ordinal, original_amount);
 
         // Orders are matched to the opposite side of the order book.
@@ -199,6 +206,13 @@ impl MatchingEngine {
     ///    requested price range, ordered by the best price:
     ///    an iterator over tuples of prices (key, `u64`)
     ///    and accompanying priority queues of pending orders at those prices (value, `BinaryHeap<PartialOrder>`).
+    ///
+    /// # Returns
+    /// - `Ok(Receipt)`
+    ///
+    /// # Errors
+    /// - Doesn't return an error variant.
+    /// - The return type of `Result<Receipt, AccountingError>` was chosen for consistency with rest of code.
     fn match_order<'a, T>(
         partial_order: &PartialOrder,
         mut price_range_entries: T,
@@ -224,7 +238,11 @@ impl MatchingEngine {
                     // we immediately fill it with a new element of the `PartialOrder` type.
                     // Still, to be fully correct and on the safe side, we check that it really isn't empty.
                     // We take a mutable reference because we want to mutate the heap.
+
+                    // List of self-matches, i.e., when we encounter signer's own order during iteration.
+                    // We skip those, but we have to return them at the end.
                     let mut self_matches = vec![];
+
                     // The inner loop:
                     while let Some(mut current_partial_order) = price_entry.pop() {
                         // Check for self-matching and skip it, because it is not allowed.

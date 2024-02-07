@@ -4,7 +4,7 @@ use crate::logic::is_valid_name;
 use crate::tx::Tx;
 use std::collections::BTreeMap;
 
-/// A type for managing accounts and their current currency balance
+/// **A type for managing accounts and their current currency balance**
 ///
 /// Maps a `String` account name to an `u64` account balance.
 #[derive(Debug)]
@@ -21,17 +21,20 @@ impl Accounts {
     }
 
     /// Retrieves the balance of an account
+    ///
+    /// # Errors
+    /// - Account doesn't exist, `AccountingError::AccountNotFound`
     pub fn balance_of(&self, signer: &str) -> Result<&u64, AccountingError> {
         self.accounts
             .get(signer)
             .ok_or(AccountingError::AccountNotFound(signer.to_string()))
     }
 
-    /// Either deposits the `amount` provided into the `signer` account
-    /// or adds the amount to the existing account.
+    /// Deposits the `amount` provided into the new `signer` account if it doesn't exist,
+    /// or adds the `amount` to the existing account.
     ///
     /// # Errors
-    /// - Attempted overflow (account over-funded).
+    /// - Attempted overflow (account over-funded), `AccountingError::AccountOverFunded`
     pub fn deposit(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
         if let Some(balance) = self.accounts.get_mut(signer) {
             (*balance)
@@ -61,8 +64,8 @@ impl Accounts {
     /// Withdraws the `amount` from the `signer` account, if it exists.
     ///
     /// # Errors
-    /// - Account doesn't exist;
-    /// - Attempted overflow (account under-funded).
+    /// - Account doesn't exist, `AccountingError::AccountNotFound`;
+    /// - Attempted overflow (account under-funded), `AccountingError::AccountUnderFunded`.
     pub fn withdraw(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
         if let Some(balance) = self.accounts.get_mut(signer) {
             (*balance)
@@ -88,9 +91,9 @@ impl Accounts {
     /// in the recipient's account if it wouldn't overflow.
     ///
     /// # Errors
-    /// - Any of the two accounts doesn't exist;
-    /// - Attempted overflow (sender's account under-funded);
-    /// - Attempted overflow (recipient's account over-funded).
+    /// - Any of the two accounts doesn't exist, `AccountingError::AccountNotFound`;
+    /// - Attempted overflow (sender's account under-funded), `AccountingError::AccountUnderFunded`;
+    /// - Attempted overflow (recipient's account over-funded), `AccountingError::AccountOverFunded`.
     pub fn send(
         &mut self,
         sender: &str,
