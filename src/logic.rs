@@ -16,8 +16,8 @@ pub fn main_loop() {
                 WITHDRAW | "w" => withdraw(words, &mut trading_platform),
                 SEND | "s" => send(words, &mut trading_platform),
                 PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => print_ledger(&trading_platform),
-                ACCOUNTS | "a" => trading_platform.print_accounts(),
-                CLIENT | "c" => trading_platform.print_single_account(words),
+                ACCOUNTS | "a" => print_accounts(&trading_platform),
+                CLIENT | "c" => print_single_account(words, &trading_platform),
                 ORDER | "o" => order(),
                 ORDER_BOOK | "ob" => order_book(words, &trading_platform),
                 ORDER_BOOK_BY_PRICE | "obp" => order_book_by_price(words, &trading_platform),
@@ -260,17 +260,114 @@ fn send(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 
 /// **Print the entire ledger (all transactions ever) - transaction log**
 fn print_ledger(trading_platform: &TradingPlatform) {
-    println!("The ledger: {:#?}", trading_platform.tx_log);
+    println!(
+        "The ledger (full transaction log): {:#?}",
+        trading_platform.tx_log
+    );
+}
+
+/// **Print all accounts and their balances**
+pub fn print_accounts(trading_platform: &TradingPlatform) {
+    println!(
+        "Accounts and their balances: {:#?}",
+        trading_platform.accounts.accounts
+    );
+}
+
+/// **Print a single requested client**
+///
+/// The signer's name can consist of multiple words.
+/// We can wrap the signer's name in single or double quotes,
+/// but we don't have to use any quotes at all.
+fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
+    let words_len = words.len();
+
+    if words_len < 2 {
+        println!("The client command: {} 'signer full name'", CLIENT);
+        return;
+    }
+
+    let signer = words[1..].join(" ");
+    let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
+
+    if is_valid_name(signer) {
+        match trading_platform.accounts.accounts.get(signer) {
+            Some(balance) => {
+                println!(
+                    r#"The client "{}" has the following balance: {}."#,
+                    signer, balance
+                )
+            }
+            None => println!(r#"The client "{}" doesn't exist."#, signer),
+        }
+    }
 }
 
 /// **Create an order**
 fn order() {}
 
 /// **Display the order book**
-fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {}
+///
+/// Both sides are combined together.
+///
+/// The command can optionally take words "sort" and "asc".
+///
+/// Optionally `sort`s the book by the ordinal sequence number;
+/// `asc` stands for ascending (considered only if `sort` is `true`).
+///
+/// By default, the order book isn't sorted.
+///
+/// By default, if sorting is requested, the order is descending.
+fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
+    println!(r#"The order book command: {} ["sort"] ["asc"]"#, ORDER_BOOK);
+
+    let words_len = words.len();
+
+    let mut sort = false;
+    if words_len > 1 && words[1] == "sort" {
+        sort = true;
+    }
+
+    let mut asc = false;
+    if words_len > 2 && words[2] == "asc" {
+        asc = true;
+    }
+
+    println!(
+        "The order book: {:#?}",
+        trading_platform.order_book(sort, asc)
+    );
+}
 
 /// **Display the order book sorted by price points**
-fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {}
+///
+/// Both sides are combined together.
+///
+/// The command can optionally take word "desc".
+///
+/// Sorted first by price points; `desc` is for descending order.
+///
+/// Inside of a price point, ordered by the ordinal sequence number.
+///
+/// The default order is ascending, in case "desc" isn't provided.
+fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
+    println!(
+        r#"The order book by price command: {} ["desc"]"#,
+        ORDER_BOOK_BY_PRICE
+    );
+
+    let words_len = words.len();
+
+    let mut rev = false;
+    if words_len > 1 && words[1] == "desc" {
+        rev = true;
+    }
+
+    println!(
+        "The order book: {:#?}",
+        trading_platform.order_book_by_price(rev)
+    );
+}
 
 #[cfg(test)]
 mod tests {

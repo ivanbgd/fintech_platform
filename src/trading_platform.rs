@@ -162,40 +162,6 @@ impl TradingPlatform {
         Ok(result)
     }
 
-    /// **Print all accounts and their balances**
-    pub fn print_accounts(&self) {
-        println!("Accounts and their balances: {:#?}", self.accounts.accounts);
-    }
-
-    /// **Prints a single requested client**
-    ///
-    /// The signer's name can consist of multiple words.
-    /// We can wrap the signer's name in single or double quotes,
-    /// but we don't have to use any quotes at all.
-    pub fn print_single_account(&self, words: Vec<&str>) {
-        let words_len = words.len();
-
-        if words_len < 2 {
-            println!("The client command: {} 'signer full name'", CLIENT);
-            return;
-        }
-
-        let signer = words[1..].join(" ");
-        let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
-
-        if is_valid_name(signer) {
-            match self.accounts.accounts.get(signer) {
-                Some(balance) => {
-                    println!(
-                        r#"The client "{}" has the following balance: {}."#,
-                        signer, balance
-                    )
-                }
-                None => println!(r#"The client "{}" doesn't exist."#, signer),
-            }
-        }
-    }
-
     /// **Process a given order and apply the outcome to the accounts involved.**
     ///
     /// Note that there are very few safeguards in place.
