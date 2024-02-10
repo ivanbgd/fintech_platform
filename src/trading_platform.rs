@@ -1,8 +1,6 @@
 use crate::accounts::Accounts;
-use crate::constants::CLIENT;
 use crate::core::{MatchingEngine, Order, PartialOrder, Receipt, Side};
 use crate::errors::AccountingError;
-use crate::logic::is_valid_name;
 use crate::tx::Tx;
 
 /// Manages accounts, validates, and orchestrates the processing of each order.
@@ -164,7 +162,7 @@ impl TradingPlatform {
 
     /// **Process a given order and apply the outcome to the accounts involved.**
     ///
-    /// Note that there are very few safeguards in place.
+    /// **Note** that there are very few safeguards in place.
     ///
     /// The account from the order is expected to exist, regardless of its side.
     /// If it doesn't exist, the [`AccountingError::AccountNotFound`] error is returned,

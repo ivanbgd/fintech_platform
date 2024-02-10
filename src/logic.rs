@@ -1,4 +1,5 @@
 use crate::constants::*;
+use crate::core::{Order, Side};
 use crate::trading_platform::TradingPlatform;
 use std::io::{stdin, stdout, Write};
 
@@ -18,7 +19,7 @@ pub fn main_loop() {
                 PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => print_ledger(&trading_platform),
                 ACCOUNTS | "a" => print_accounts(&trading_platform),
                 CLIENT | "c" => print_single_account(words, &trading_platform),
-                ORDER | "o" => order(),
+                ORDER | "o" => order(words, &mut trading_platform),
                 ORDER_BOOK | "ob" => order_book(words, &trading_platform),
                 ORDER_BOOK_BY_PRICE | "obp" => order_book_by_price(words, &trading_platform),
                 QUIT | "q" => break,
@@ -45,8 +46,7 @@ fn help_contents_full() -> String {
 /// Wrapped by `help()` so we can unit-test the contents,
 /// so that we don't forget to include a newly-added command to help.
 fn help_contents_short() -> String {
-    let msg = "h d w s p l t a c o ob obp q".to_string();
-    msg
+    "h d w s p l t a c o ob obp q".to_string()
 }
 
 /// **Prints all existing commands in their full and short variants.**
@@ -86,9 +86,12 @@ fn read_from_stdin(label: &str) -> Option<String> {
 }
 
 /// **Basic input validation for a signer's name**
+///
+/// Checks for:
+/// - An empty string.
 pub fn is_valid_name(signer: &str) -> bool {
     if signer.trim().is_empty() {
-        println!("Signer's name cannot be empty.");
+        eprintln!("[ERROR] Signer's name cannot be empty.");
         false
     } else {
         true
@@ -102,7 +105,7 @@ pub fn is_valid_name(signer: &str) -> bool {
 /// "invalid digit found in string".
 ///
 /// This function can be converted into a macro.
-fn cannot_parse(word: &str) {
+fn cannot_parse_number(word: &str) {
     eprintln!(
         "[ERROR] Only non-negative integer numbers are allowed as the amount; you provided '{}'.",
         word
@@ -126,7 +129,7 @@ fn cannot_parse(word: &str) {
 /// transaction, and records the transaction in the success case.
 ///
 /// # Errors
-/// An error can happen in case the account would become over-funded.
+/// - Attempted overflow (account over-funded), `AccountingError::AccountOverFunded`
 ///
 /// We could pattern-match it for a different output format and the message
 /// contents, but haven't done that here. Error is still printed.
@@ -144,7 +147,7 @@ fn deposit(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
     let amount = match words[words_len - 1].parse::<u64>() {
         Ok(amount) => amount,
         Err(_err) => {
-            cannot_parse(words[words_len - 1]);
+            cannot_parse_number(words[words_len - 1]);
             return;
         }
     };
@@ -174,7 +177,8 @@ fn deposit(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// transaction, and records the transaction in the success case.
 ///
 /// # Errors
-/// Potential errors are if the account doesn't exist, or if it is under-funded.
+/// - Account doesn't exist, `AccountingError::AccountNotFound`;
+/// - Attempted overflow (account under-funded), `AccountingError::AccountUnderFunded`.
 ///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
@@ -195,7 +199,7 @@ fn withdraw(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
             println!("{:?}", tx);
         }
     } else {
-        cannot_parse(words[words_len - 1]);
+        cannot_parse_number(words[words_len - 1]);
     }
 }
 
@@ -223,9 +227,9 @@ fn withdraw(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// transaction, and records the two transactions in the success case.
 ///
 /// # Errors
-/// Potential errors are if any of the two accounts doesn't exist,
-/// or if the sender's account is under-funded,
-/// or if the recipient's account would be over-funded.
+/// - Any of the two accounts doesn't exist, `AccountingError::AccountNotFound`;
+/// - Attempted overflow (sender's account under-funded), `AccountingError::AccountUnderFunded`;
+/// - Attempted overflow (recipient's account over-funded), `AccountingError::AccountOverFunded`.
 ///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
@@ -254,7 +258,7 @@ fn send(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
             println!("{:?}", txs);
         }
     } else {
-        cannot_parse(words[words_len - 1]);
+        cannot_parse_number(words[words_len - 1]);
     }
 }
 
@@ -283,7 +287,7 @@ fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
     let words_len = words.len();
 
     if words_len < 2 {
-        println!("The client command: {} 'signer full name'", CLIENT);
+        println!("The client command: {CLIENT} 'signer full name'");
         return;
     }
 
@@ -303,8 +307,66 @@ fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
     }
 }
 
-/// **Create an order**
-fn order() {}
+/// **Create and process an order**
+///
+/// The signer's name can consist of multiple words.
+/// We can wrap the signer's name in single or double quotes,
+/// but we don't have to use any quotes at all.
+///
+/// The account needs to exist in advance.
+///
+/// Performs basic input validation of the signer's name, of the side,
+/// and of the price and amount, which should be non-negative integers.
+///
+/// Prints a success or an error message depending on the status of the
+/// receipt (of the processing of the order).
+///
+/// # Errors
+/// - Account not found, `AccountingError::AccountNotFound`;
+/// - Account has insufficient funds, `AccountingError::AccountUnderFunded`;
+/// - Account would be over-funded, `AccountingError::AccountOverFunded`.
+fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
+    let words_len = words.len();
+
+    if words_len < 5 {
+        println!("The order command: {ORDER} 'signer full name' <side> <price> <amount>");
+        return;
+    }
+
+    let signer = words[1..(words_len - 3)].join(" ");
+    let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
+
+    let side = match words[words_len - 3] {
+        "buy" | "bid" => Side::Buy,
+        "sell" | "ask" => Side::Sell,
+        _ => {
+            eprintln!(r#"[ERROR] Side can be either "buy"/"bid" or "sell"/"ask"."#);
+            return;
+        }
+    };
+
+    let price = match words[words_len - 2].parse::<u64>() {
+        Ok(price) => price,
+        Err(_err) => {
+            cannot_parse_number(words[words_len - 2]);
+            return;
+        }
+    };
+
+    let amount = match words[words_len - 1].parse::<u64>() {
+        Ok(amount) => amount,
+        Err(_err) => {
+            cannot_parse_number(words[words_len - 1]);
+            return;
+        }
+    };
+
+    if is_valid_name(signer) {
+        let order = Order::new(price, amount, side, signer.to_string());
+        let receipt = trading_platform.process_order(order);
+        println!("{:?}", receipt);
+    }
+}
 
 /// **Display the order book**
 ///
@@ -319,7 +381,7 @@ fn order() {}
 ///
 /// By default, if sorting is requested, the order is descending.
 fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
-    println!(r#"The order book command: {} ["sort"] ["asc"]"#, ORDER_BOOK);
+    println!(r#"The order book command: {ORDER_BOOK} ["sort"] ["asc"]"#);
 
     let words_len = words.len();
 
@@ -351,10 +413,7 @@ fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
 ///
 /// The default order is ascending, in case "desc" isn't provided.
 fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
-    println!(
-        r#"The order book by price command: {} ["desc"]"#,
-        ORDER_BOOK_BY_PRICE
-    );
+    println!(r#"The order book by price command: {ORDER_BOOK_BY_PRICE} ["desc"]"#);
 
     let words_len = words.len();
 
