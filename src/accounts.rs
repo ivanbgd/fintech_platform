@@ -1,6 +1,4 @@
-use crate::constants::CLIENT;
 use crate::errors::AccountingError;
-use crate::logic::is_valid_name;
 use crate::tx::Tx;
 use std::collections::BTreeMap;
 
@@ -9,7 +7,7 @@ use std::collections::BTreeMap;
 /// Maps a `String` account name to an `u64` account balance.
 #[derive(Debug)]
 pub struct Accounts {
-    accounts: BTreeMap<String, u64>,
+    pub accounts: BTreeMap<String, u64>,
 }
 
 impl Accounts {
@@ -128,35 +126,6 @@ impl Accounts {
         let deposit = self.deposit(recipient, amount)?;
 
         Ok((withdrawal, deposit))
-    }
-}
-
-/// **Prints all accounts and their balances**
-pub fn print_accounts(accounts: &Accounts) {
-    println!("Accounts and their balances: {:#?}", accounts.accounts);
-}
-
-/// **Prints a single requested client**
-///
-/// The signer's name can consist of multiple words.
-/// We can wrap the signer's name in single or double quotes,
-/// but we don't have to use any quotes at all.
-pub fn print_single_account(words: Vec<&str>, accounts: &Accounts) {
-    let words_len = words.len();
-
-    if words_len < 2 {
-        println!("The client command: {} 'signer full name'", CLIENT);
-        return;
-    }
-
-    let signer = words[1..].join(" ");
-    let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
-
-    if is_valid_name(signer) {
-        match accounts.accounts.get(signer) {
-            Some(balance) => println!(r#"The client "{}" has this balance: {}."#, signer, balance),
-            None => println!(r#"The client "{}" doesn't exist."#, signer),
-        }
     }
 }
 

@@ -1,11 +1,9 @@
-use crate::accounts::{print_accounts, print_single_account, Accounts};
 use crate::constants::*;
-use crate::tx::Tx;
+use crate::trading_platform::TradingPlatform;
 use std::io::{stdin, stdout, Write};
 
 pub fn main_loop() {
-    let mut accounts = Accounts::new();
-    let mut ledger: Vec<Tx> = Vec::new();
+    let mut trading_platform = TradingPlatform::new();
 
     loop {
         if let Some(line) = read_from_stdin(PROMPT) {
@@ -14,12 +12,15 @@ pub fn main_loop() {
 
             match cmd.as_str() {
                 HELP | "h" => help(),
-                DEPOSIT | "d" => deposit(words, &mut accounts, &mut ledger),
-                WITHDRAW | "w" => withdraw(words, &mut accounts, &mut ledger),
-                SEND | "s" => send(words, &mut accounts, &mut ledger),
-                PRINT | LEDGER | TX | "p" | "l" | "t" => print_ledger(&ledger),
-                ACCOUNTS | "a" => print_accounts(&accounts),
-                CLIENT | "c" => print_single_account(words, &accounts),
+                DEPOSIT | "d" => deposit(words, &mut trading_platform),
+                WITHDRAW | "w" => withdraw(words, &mut trading_platform),
+                SEND | "s" => send(words, &mut trading_platform),
+                PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => print_ledger(&trading_platform),
+                ACCOUNTS | "a" => trading_platform.print_accounts(),
+                CLIENT | "c" => trading_platform.print_single_account(words),
+                ORDER | "o" => order(),
+                ORDER_BOOK | "ob" => order_book(words, &trading_platform),
+                ORDER_BOOK_BY_PRICE | "obp" => order_book_by_price(words, &trading_platform),
                 QUIT | "q" => break,
                 _ => println!("Unrecognized command; try `help`."),
             }
@@ -27,19 +28,31 @@ pub fn main_loop() {
     }
 }
 
-/// **Contains all existing commands.**
+/// **Contains full variants of all existing commands.**
 ///
-/// Wrapped by `help()` so we can unit-test the contents.
-fn help_contents() -> String {
+/// Wrapped by `help()` so we can unit-test the contents,
+/// so that we don't forget to include a newly-added command to help.
+fn help_contents_full() -> String {
     let msg = format!(
-        "{HELP} {DEPOSIT} {WITHDRAW} {SEND} {PRINT} {LEDGER} {TX} {ACCOUNTS} {CLIENT} {QUIT}"
+        "{HELP} {DEPOSIT} {WITHDRAW} {SEND} {PRINT} {LEDGER} {TX_LOG} {ACCOUNTS} \
+         {CLIENT} {ORDER} {ORDER_BOOK} {ORDER_BOOK_BY_PRICE} {QUIT}"
     );
     msg
 }
 
-/// **Prints all existing commands.**
+/// **Contains short variants of all existing commands.**
+///
+/// Wrapped by `help()` so we can unit-test the contents,
+/// so that we don't forget to include a newly-added command to help.
+fn help_contents_short() -> String {
+    let msg = "h d w s p l t a c o ob obp q".to_string();
+    msg
+}
+
+/// **Prints all existing commands in their full and short variants.**
 fn help() {
-    println!("{}", help_contents());
+    println!("{}", help_contents_full());
+    println!("{}", help_contents_short());
 }
 
 /// **Reads standard input into a line.**
@@ -117,7 +130,7 @@ fn cannot_parse(word: &str) {
 ///
 /// We could pattern-match it for a different output format and the message
 /// contents, but haven't done that here. Error is still printed.
-fn deposit(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
+fn deposit(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
     let words_len = words.len();
 
     if words_len < 3 {
@@ -137,11 +150,8 @@ fn deposit(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
     };
 
     if is_valid_name(signer) {
-        let tx = accounts.deposit(signer, amount);
+        let tx = trading_platform.deposit(signer, amount);
         println!("{:?}", tx);
-        if tx.is_ok() {
-            ledger.push(tx.expect("Failed to unwrap deposit tx."));
-        }
     }
 }
 
@@ -168,7 +178,7 @@ fn deposit(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
 ///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
-fn withdraw(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
+fn withdraw(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
     let words_len = words.len();
 
     if words_len < 3 {
@@ -181,11 +191,8 @@ fn withdraw(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
 
     if let Ok(amount) = words[words_len - 1].parse::<u64>() {
         if is_valid_name(signer) {
-            let tx = accounts.withdraw(signer, amount);
+            let tx = trading_platform.withdraw(signer, amount);
             println!("{:?}", tx);
-            if tx.is_ok() {
-                ledger.push(tx.expect("Failed to unwrap withdraw tx."));
-            }
         }
     } else {
         cannot_parse(words[words_len - 1]);
@@ -222,7 +229,7 @@ fn withdraw(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
 ///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
-fn send(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
+fn send(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
     let words_len = words.len();
 
     if (words_len < 4) || !words.contains(&SEPARATOR) {
@@ -243,35 +250,47 @@ fn send(words: Vec<&str>, accounts: &mut Accounts, ledger: &mut Vec<Tx>) {
 
     if let Ok(amount) = words[words_len - 1].parse::<u64>() {
         if is_valid_name(sender) && is_valid_name(recipient) {
-            let txs = accounts.send(sender, recipient, amount);
+            let txs = trading_platform.send(sender, recipient, amount);
             println!("{:?}", txs);
-            if txs.is_ok() {
-                let (tx_withdraw, tx_deposit) = txs.expect("Failed to unpack the txs tuple.");
-                ledger.push(tx_withdraw);
-                ledger.push(tx_deposit);
-            }
         }
     } else {
         cannot_parse(words[words_len - 1]);
     }
 }
 
-/// **Prints the entire ledger (all transactions ever)**
-fn print_ledger(ledger: &Vec<Tx>) {
-    println!("The ledger: {:#?}", ledger);
+/// **Print the entire ledger (all transactions ever) - transaction log**
+fn print_ledger(trading_platform: &TradingPlatform) {
+    println!("The ledger: {:#?}", trading_platform.tx_log);
 }
+
+/// **Create an order**
+fn order() {}
+
+/// **Display the order book**
+fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {}
+
+/// **Display the order book sorted by price points**
+fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {}
 
 #[cfg(test)]
 mod tests {
-    use super::help_contents;
+    use super::help_contents_full;
+    use super::help_contents_short;
     use crate::constants::SEPARATOR;
 
     #[test]
     fn test_help_contents() {
-        let expected = "help deposit withdraw send print ledger tx accounts client quit"
+        let expected = "help deposit withdraw send print ledger txlog accounts \
+        client order orderbook orderbookbyprice quit"
             .trim()
             .to_string();
-        assert_eq!(help_contents(), expected);
+        assert_eq!(help_contents_full(), expected);
+    }
+
+    #[test]
+    fn test_help_contents_short() {
+        let expected = "h d w s p l t a c o ob obp q".to_string();
+        assert_eq!(help_contents_short(), expected);
     }
 
     #[test]
