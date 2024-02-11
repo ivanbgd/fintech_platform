@@ -372,17 +372,18 @@ fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 ///
 /// Both sides are combined together.
 ///
-/// The command can optionally take words "sort" and "asc".
+/// The command can optionally take words "sort" and "desc".
 ///
 /// Optionally `sort`s the book by the ordinal sequence number;
-/// `asc` stands for ascending (considered only if `sort` is `true`).
+/// `desc` stands for descending (considered only if `sort` is `true`).
 ///
 /// By default, the order book isn't sorted.
 ///
-/// By default, if sorting is requested, the order is descending.
+/// If sorting is requested, the order is ascending by default.
 fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
-    println!(r#"The order book command: {ORDER_BOOK} ["sort"] ["asc"]"#);
-    println!("The optional sorting is done by ordinals, and is descending by default.");
+    println!(r#"The order book command: {ORDER_BOOK} ["sort"] ["desc"]"#);
+    println!("By default, the order book isn't sorted.");
+    println!("The optional sorting is done by ordinals, and is ascending by default.");
 
     let words_len = words.len();
 
@@ -391,14 +392,14 @@ fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
         sort = true;
     }
 
-    let mut asc = false;
-    if words_len > 2 && words[2] == "asc" {
-        asc = true;
+    let mut desc = false;
+    if words_len > 2 && words[2] == "desc" {
+        desc = true;
     }
 
     println!(
         "The order book: {:#?}",
-        trading_platform.order_book(sort, asc)
+        trading_platform.order_book(sort, desc)
     );
 }
 

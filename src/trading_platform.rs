@@ -25,8 +25,12 @@ impl TradingPlatform {
     /// Both sides are combined together.
     ///
     /// Optionally `sort`s the book by the ordinal sequence number;
-    /// `asc` stands for ascending (considered only if `sort` is `true`).
-    pub fn order_book(&self, sort: bool, asc: bool) -> Vec<PartialOrder> {
+    /// `desc` stands for descending (considered only if `sort` is `true`).
+    ///
+    /// By default, the order book isn't sorted.
+    ///
+    /// If sorting is requested, the order is ascending by default.
+    pub fn order_book(&self, sort: bool, desc: bool) -> Vec<PartialOrder> {
         let mut book: Vec<PartialOrder> = self
             .matching_engine
             .asks
@@ -38,14 +42,13 @@ impl TradingPlatform {
 
         // We have implemented the `PartialOrd` trait for our order type, which is `PartialOrder`;
         // see: `impl PartialOrd for types::PartialOrder::partial_cmp`.
-        // It was implemented to compare ordinals of orders, and this is why sorting is done
-        // by ordinals.
+        // It was implemented to compare ordinals of orders, and this is why sorting is done by ordinals.
         if sort {
             book.sort_unstable();
 
             // `impl PartialOrd for types::PartialOrder::partial_cmp` is using reverse order of ordinals;
             // that's why we have to negate that reversal here, by reversing again for ascending order.
-            if asc {
+            if !desc {
                 book.reverse();
             }
         }
