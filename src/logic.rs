@@ -411,22 +411,27 @@ fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
 ///
 /// Sorted first by price points; `desc` is for descending order.
 ///
-/// Inside of a price point, ordered by the ordinal sequence number.
+/// Inside of a price point, ordered ascending by the ordinal sequence number.
 ///
 /// The default order is ascending, in case "desc" isn't provided.
 fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
     println!(r#"The order book by price command: {ORDER_BOOK_BY_PRICE} ["desc"]"#);
+    println!(
+        "Sorted first by price points in ascending order; \
+        optional \"desc\" is for descending order of prices."
+    );
+    println!("Inside of a price point, ordered ascending by the ordinal sequence number.");
 
     let words_len = words.len();
 
-    let mut rev = false;
+    let mut desc = false;
     if words_len > 1 && words[1] == "desc" {
-        rev = true;
+        desc = true;
     }
 
     println!(
         "The order book: {:#?}",
-        trading_platform.order_book_by_price(rev)
+        trading_platform.order_book_by_price(desc)
     );
 }
 

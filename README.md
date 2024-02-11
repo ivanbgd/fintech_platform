@@ -32,5 +32,6 @@ additional Rust web services, small and large.
   - I have generally added more unit tests than required, for various parts of the application.
 
 ## Potential Improvements and Additions
+- Checking if a seller really has the amount they wish to sell;
 - Removal of an account;
-- Checking if a seller has the amount they wish to sell.
+- Clearing of everything: all accounts and entire transaction log.

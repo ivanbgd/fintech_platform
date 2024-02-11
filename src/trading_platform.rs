@@ -60,50 +60,16 @@ impl TradingPlatform {
     ///
     /// Both sides are combined together.
     ///
-    /// Sorted first by price points; `rev` is for descending order.
+    /// Sorted first by price points; `desc` is for descending order.
     ///
-    /// Inside of a price point, ordered by the ordinal sequence number.
-    pub fn order_book_by_price(&self, rev: bool) -> Vec<PartialOrder> {
-        let mut asks = self.matching_engine.asks.clone();
-        let mut bids = self.matching_engine.bids.clone();
+    /// Inside of a price point, ordered ascending by the ordinal sequence number.
+    pub fn order_book_by_price(&self, desc: bool) -> Vec<PartialOrder> {
+        let mut book = self.order_book(true, false);
 
-        // An optimization.
-        // We add a smaller tree to a larger tree. This ensures fewer self-balancing operations.
-        // The size is determined by the number of elements, which are heaps at different price points.
-        // Sizes of heaps, or total number of partial orders, are not relevant for this.
-        let asks_larger = asks.len() >= bids.len();
-
-        // We are iterating over the smaller of the two BTrees,
-        // i.e., over the smaller of the two sides of the order book,
-        // and adding those fewer partial orders to the larger data structure,
-        // so that we have fewer iterations and consequently fewer self-balancing BST operations.
-        let mut combined_book = if asks_larger {
-            for (price, bids_heap) in bids {
-                asks.entry(price).or_insert(bids_heap);
-            }
-            asks
+        if !desc {
+            book.sort_by(|a, b| (a.price).cmp(&b.price));
         } else {
-            for (price, asks_heap) in asks {
-                bids.entry(price).or_insert(asks_heap);
-            }
-            bids
-        };
-
-        let num_orders = self.matching_engine.asks.len() + self.matching_engine.bids.len();
-        let mut book: Vec<PartialOrder> = Vec::with_capacity(num_orders);
-
-        if !rev {
-            for heap in combined_book.values_mut() {
-                while let Some(order) = heap.pop() {
-                    book.push(order);
-                }
-            }
-        } else {
-            for (_price, heap) in combined_book.iter_mut().rev() {
-                while let Some(order) = heap.pop() {
-                    book.push(order);
-                }
-            }
+            book.sort_by(|a, b| (b.price).cmp(&a.price));
         }
 
         book
@@ -289,7 +255,7 @@ mod tests {
         assert_eq!(
             expected,
             trading_platform
-                .order_book(true, true)
+                .order_book(true, false)
                 .iter()
                 .map(|po| po.signer.as_str())
                 .collect::<Vec<_>>()
@@ -300,7 +266,7 @@ mod tests {
         assert_eq!(
             expected.to_vec(),
             trading_platform
-                .order_book(true, false)
+                .order_book(true, true)
                 .iter()
                 .map(|po| po.signer.as_str())
                 .collect::<Vec<_>>()
