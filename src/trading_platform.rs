@@ -44,7 +44,7 @@ impl TradingPlatform {
         // see: `impl PartialOrd for types::PartialOrder::partial_cmp`.
         // It was implemented to compare ordinals of orders, and this is why sorting is done by ordinals.
         if sort {
-            book.sort_unstable();
+            book.sort();
 
             // `impl PartialOrd for types::PartialOrder::partial_cmp` is using reverse order of ordinals;
             // that's why we have to negate that reversal here, by reversing again for ascending order.
