@@ -63,7 +63,7 @@ impl TradingPlatform {
     ///
     /// Sorted first by price points ascending; `desc` is for descending order.
     ///
-    /// Inside of a price point, ordered ascending by the ordinal sequence number.
+    /// Inside of a price point, always ordered ascending by the ordinal sequence number.
     pub fn order_book_by_price(&self, desc: bool) -> Vec<PartialOrder> {
         let mut book = self.order_book(true, false);
 
@@ -310,7 +310,7 @@ mod tests {
     /// so we are also testing here when a bid comes first and then an ask from the same signer, Bob.
     /// Self-matches are not allowed, so all three Bob's orders should remain in the order book.
     /// The `order_book_by_price` function sorts by price, in ascending order by default,
-    /// and inside of a price point, orders ascending by the ordinal sequence number.
+    /// and inside of a price point, always orders ascending by the ordinal sequence number.
     #[test]
     fn order_book_by_price_sorted_both_ways() {
         let mut trading_platform = TradingPlatform::new();
