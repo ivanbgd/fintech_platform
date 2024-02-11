@@ -5,33 +5,5 @@ resolver = "2"
 members = [
     "fintech_cli",
     "fintech_common",
+    "fintech_web",
 ]
-
-
-
-
-
-
-
-
-
-#[package]
-#name = "fintech_platform"
-#version = "0.1.0"
-#edition = "2021"
-#authors = ["Ivan Lazarević"]
-#description = "Fintech Platform (HFT)"
-#repository = "https://github.com/ivanbgd/fintech_platform"
-#license = "MIT"
-#keywords = ["finance", "fintech", "hft", "trading", "orderbook"]
-#categories = ["finance"]
-#
-#[lib]
-#path = "src/lib.rs"
-#
-#[[bin]]
-#name = "fintech_platform"
-#path = "src/main.rs"
-#
-#[dependencies]
-#fintech_common = { path = "./fintech_common" }
