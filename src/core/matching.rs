@@ -1,5 +1,5 @@
-use crate::core::{Order, PartialOrder, Receipt, Side};
-use crate::errors::AccountingError; // This is NOT used explicitly anywhere in this file!
+use fintech_common::core::types::{Order, PartialOrder, Receipt, Side};
+use fintech_common::errors::AccountingError; // This is NOT used explicitly anywhere in this file!
 use std::collections::{BTreeMap, BinaryHeap};
 
 /// **A FIFO matching engine**
@@ -44,7 +44,6 @@ use std::collections::{BTreeMap, BinaryHeap};
 /// The live project's implementation works in the opposite way than my implementation,
 /// but only in case of selling. The buying case works in the same way.
 /// But, this means that their implementation is asymmetrical, and hence not fair.
-#[derive()]
 pub struct MatchingEngine {
     /// The order's unique ordinal (linear) sequence number.
     pub ordinal: u64,

@@ -17,3 +17,4 @@ name = "fintech_platform"
 path = "src/main.rs"
 
 [dependencies]
+fintech_common = { path = "./fintech_common" }
