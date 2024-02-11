@@ -60,7 +60,7 @@ impl TradingPlatform {
     ///
     /// Both sides are combined together.
     ///
-    /// Sorted first by price points; `desc` is for descending order.
+    /// Sorted first by price points ascending; `desc` is for descending order.
     ///
     /// Inside of a price point, ordered ascending by the ordinal sequence number.
     pub fn order_book_by_price(&self, desc: bool) -> Vec<PartialOrder> {
@@ -223,8 +223,9 @@ mod tests {
     use super::*;
 
     /// The implementation of the `order_book` function works first with asks (sells) and then with bids (buys),
-    /// so we are testing here when a bid comes first and then an ask from the same signer, Bob.
-    /// Self-matches are not allowed, so both orders should remain in the order book.
+    /// so we are also testing here when a bid comes first and then an ask from the same signer, Bob.
+    /// Self-matches are not allowed, so all three Bob's orders should remain in the order book.
+    /// The `order_book` function sorts by ordinals, in ascending order by default.
     #[test]
     fn order_book_sorted_both_ways() {
         let mut trading_platform = TradingPlatform::new();
@@ -254,10 +255,13 @@ mod tests {
         trading_platform
             .process_order(Order::new(12, 3, Side::Sell, String::from("Bob")))
             .unwrap();
+        trading_platform
+            .process_order(Order::new(12, 3, Side::Buy, String::from("Bob")))
+            .unwrap();
 
-        assert_eq!(6, trading_platform.order_book(false, true).len());
+        assert_eq!(7, trading_platform.order_book(false, true).len());
 
-        let mut expected = ["Alice", "Bob", "Charlie", "Donna", "Eleanor", "Bob"];
+        let mut expected = ["Alice", "Bob", "Charlie", "Donna", "Eleanor", "Bob", "Bob"];
         assert_eq!(
             expected,
             trading_platform
@@ -278,7 +282,7 @@ mod tests {
                 .collect::<Vec<_>>()
         );
 
-        let mut expected = [1, 2, 3, 4, 5, 6];
+        let mut expected = [1, 2, 3, 4, 5, 6, 7];
         assert_eq!(
             expected,
             trading_platform
@@ -300,47 +304,12 @@ mod tests {
         );
     }
 
-    /// Implementation of the `order_book` function works first with asks (sells) and then with bids (buys),
-    /// so we are testing here when a bid comes first and then an ask from the same signer.
-    /// Self-matches are not allowed, so both orders should remain in the order book.
-    #[test]
-    fn order_book_same_buyer_and_seller_sorted_both_ways() {
-        let mut trading_platform = TradingPlatform::new();
-
-        // Set up account
-        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
-
-        trading_platform
-            .process_order(Order::new(15, 2, Side::Buy, String::from("Alice")))
-            .unwrap();
-        trading_platform
-            .process_order(Order::new(15, 2, Side::Sell, String::from("Alice")))
-            .unwrap();
-
-        assert_eq!(2, trading_platform.order_book(false, true).len());
-
-        // Array of ordinals
-        let mut expected = [1, 2];
-        assert_eq!(
-            expected.to_vec(),
-            trading_platform
-                .order_book(true, false)
-                .iter()
-                .map(|po| po.ordinal)
-                .collect::<Vec<_>>()
-        );
-
-        expected.reverse();
-        assert_eq!(
-            expected.to_vec(),
-            trading_platform
-                .order_book(true, true)
-                .iter()
-                .map(|po| po.ordinal)
-                .collect::<Vec<_>>()
-        );
-    }
-
+    /// The implementation of the `order_book_by_price` function works through `order_book`
+    /// first with asks (sells) and then with bids (buys),
+    /// so we are also testing here when a bid comes first and then an ask from the same signer, Bob.
+    /// Self-matches are not allowed, so all three Bob's orders should remain in the order book.
+    /// The `order_book_by_price` function sorts by price, in ascending order by default,
+    /// and inside of a price point, orders ascending by the ordinal sequence number.
     #[test]
     fn order_book_by_price_sorted_both_ways() {
         let mut trading_platform = TradingPlatform::new();
@@ -367,10 +336,16 @@ mod tests {
         trading_platform
             .process_order(Order::new(14, 5, Side::Sell, String::from("Eleanor")))
             .unwrap();
+        trading_platform
+            .process_order(Order::new(12, 3, Side::Sell, String::from("Bob")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(12, 3, Side::Buy, String::from("Bob")))
+            .unwrap();
 
-        assert_eq!(5, trading_platform.order_book_by_price(false).len());
+        assert_eq!(7, trading_platform.order_book_by_price(false).len());
 
-        let mut expected = ["Donna", "Bob", "Charlie", "Eleanor", "Alice"];
+        let mut expected = ["Donna", "Bob", "Bob", "Bob", "Charlie", "Eleanor", "Alice"];
         assert_eq!(
             expected,
             trading_platform
@@ -381,13 +356,34 @@ mod tests {
                 .as_slice()
         );
 
-        expected = ["Alice", "Charlie", "Eleanor", "Bob", "Donna"];
+        expected = ["Alice", "Charlie", "Eleanor", "Bob", "Bob", "Bob", "Donna"];
         assert_eq!(
             expected.to_vec(),
             trading_platform
                 .order_book_by_price(true)
                 .iter()
                 .map(|po| po.signer.as_str())
+                .collect::<Vec<_>>()
+        );
+
+        let mut expected = [4, 2, 6, 7, 3, 5, 1];
+        assert_eq!(
+            expected,
+            trading_platform
+                .order_book_by_price(false)
+                .iter()
+                .map(|po| po.ordinal)
+                .collect::<Vec<_>>()
+                .as_slice()
+        );
+
+        expected = [1, 3, 5, 2, 6, 7, 4];
+        assert_eq!(
+            expected.to_vec(),
+            trading_platform
+                .order_book_by_price(true)
+                .iter()
+                .map(|po| po.ordinal)
                 .collect::<Vec<_>>()
         );
     }

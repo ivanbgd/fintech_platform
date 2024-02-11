@@ -409,7 +409,7 @@ fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
 ///
 /// The command can optionally take word "desc".
 ///
-/// Sorted first by price points; `desc` is for descending order.
+/// Sorted first by price points ascending; optional `desc` is for descending order.
 ///
 /// Inside of a price point, ordered ascending by the ordinal sequence number.
 ///
