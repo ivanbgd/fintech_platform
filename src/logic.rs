@@ -382,6 +382,7 @@ fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// By default, if sorting is requested, the order is descending.
 fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
     println!(r#"The order book command: {ORDER_BOOK} ["sort"] ["asc"]"#);
+    println!("The optional sorting is done by ordinals, and is descending by default.");
 
     let words_len = words.len();
 

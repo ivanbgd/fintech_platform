@@ -27,23 +27,19 @@ impl TradingPlatform {
     /// Optionally `sort`s the book by the ordinal sequence number;
     /// `asc` stands for ascending (considered only if `sort` is `true`).
     pub fn order_book(&self, sort: bool, asc: bool) -> Vec<PartialOrder> {
-        let num_orders = self.matching_engine.asks.len() + self.matching_engine.bids.len();
-        let mut book = Vec::with_capacity(num_orders);
+        let mut book: Vec<PartialOrder> = self
+            .matching_engine
+            .asks
+            .values()
+            .cloned()
+            .chain(self.matching_engine.bids.values().cloned())
+            .flatten()
+            .collect();
 
-        let asks = self.matching_engine.asks.clone();
-        for (_price, heap) in asks {
-            for order in heap {
-                book.push(order);
-            }
-        }
-
-        let bids = self.matching_engine.bids.clone();
-        for (_price, heap) in bids {
-            for order in heap {
-                book.push(order);
-            }
-        }
-
+        // We have implemented the `PartialOrd` trait for our order type, which is `PartialOrder`;
+        // see: `impl PartialOrd for types::PartialOrder::partial_cmp`.
+        // It was implemented to compare ordinals of orders, and this is why sorting is done
+        // by ordinals.
         if sort {
             book.sort_unstable();
 
