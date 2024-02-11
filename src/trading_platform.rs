@@ -222,6 +222,9 @@ impl TradingPlatform {
 mod tests {
     use super::*;
 
+    /// The implementation of the `order_book` function works first with asks (sells) and then with bids (buys),
+    /// so we are testing here when a bid comes first and then an ask from the same signer, Bob.
+    /// Self-matches are not allowed, so both orders should remain in the order book.
     #[test]
     fn order_book_sorted_both_ways() {
         let mut trading_platform = TradingPlatform::new();
@@ -248,10 +251,13 @@ mod tests {
         trading_platform
             .process_order(Order::new(14, 5, Side::Sell, String::from("Eleanor")))
             .unwrap();
+        trading_platform
+            .process_order(Order::new(12, 3, Side::Sell, String::from("Bob")))
+            .unwrap();
 
-        assert_eq!(5, trading_platform.order_book(false, true).len());
+        assert_eq!(6, trading_platform.order_book(false, true).len());
 
-        let mut expected = ["Alice", "Bob", "Charlie", "Donna", "Eleanor"];
+        let mut expected = ["Alice", "Bob", "Charlie", "Donna", "Eleanor", "Bob"];
         assert_eq!(
             expected,
             trading_platform
@@ -269,6 +275,68 @@ mod tests {
                 .order_book(true, true)
                 .iter()
                 .map(|po| po.signer.as_str())
+                .collect::<Vec<_>>()
+        );
+
+        let mut expected = [1, 2, 3, 4, 5, 6];
+        assert_eq!(
+            expected,
+            trading_platform
+                .order_book(true, false)
+                .iter()
+                .map(|po| po.ordinal)
+                .collect::<Vec<_>>()
+                .as_slice()
+        );
+
+        expected.reverse();
+        assert_eq!(
+            expected.to_vec(),
+            trading_platform
+                .order_book(true, true)
+                .iter()
+                .map(|po| po.ordinal)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// Implementation of the `order_book` function works first with asks (sells) and then with bids (buys),
+    /// so we are testing here when a bid comes first and then an ask from the same signer.
+    /// Self-matches are not allowed, so both orders should remain in the order book.
+    #[test]
+    fn order_book_same_buyer_and_seller_sorted_both_ways() {
+        let mut trading_platform = TradingPlatform::new();
+
+        // Set up account
+        assert!(trading_platform.accounts.deposit("Alice", 100).is_ok());
+
+        trading_platform
+            .process_order(Order::new(15, 2, Side::Buy, String::from("Alice")))
+            .unwrap();
+        trading_platform
+            .process_order(Order::new(15, 2, Side::Sell, String::from("Alice")))
+            .unwrap();
+
+        assert_eq!(2, trading_platform.order_book(false, true).len());
+
+        // Array of ordinals
+        let mut expected = [1, 2];
+        assert_eq!(
+            expected.to_vec(),
+            trading_platform
+                .order_book(true, false)
+                .iter()
+                .map(|po| po.ordinal)
+                .collect::<Vec<_>>()
+        );
+
+        expected.reverse();
+        assert_eq!(
+            expected.to_vec(),
+            trading_platform
+                .order_book(true, true)
+                .iter()
+                .map(|po| po.ordinal)
                 .collect::<Vec<_>>()
         );
     }
