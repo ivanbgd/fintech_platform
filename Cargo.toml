@@ -1,9 +1,14 @@
 [workspace]
-
+members = ["./fintech_cli", "./fintech_common", "./fintech_web_service"]
+default-members = ["./fintech_cli"]
 resolver = "2"
 
-members = [
-    "fintech_cli",
-    "fintech_common",
-    "fintech_web",
-]
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Ivan Lazarević"]
+description = "Fintech Platform (HFT)"
+repository = "https://github.com/ivanbgd/fintech_platform"
+license = "MIT"
+keywords = ["finance", "fintech", "hft", "trading", "orderbook"]
+categories = ["finance"]

@@ -34,4 +34,4 @@ additional Rust web services, small and large.
 ## Potential Improvements and Additions
 - Checking if a seller really has the amount they wish to sell;
 - Removal of an account;
-- Clearing of everything: all accounts and entire transaction log.
+- Clearing everything: all accounts and entire transaction log.

@@ -1,5 +1,5 @@
 use fintech_common::core::types::{Order, PartialOrder, Receipt, Side};
-use fintech_common::errors::AccountingError; // This is NOT used explicitly anywhere in this file!
+use fintech_common::errors::AccountingError;
 use std::collections::{BTreeMap, BinaryHeap};
 
 /// **A FIFO matching engine**

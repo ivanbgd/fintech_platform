@@ -1,20 +1,13 @@
 [package]
-name = "fintech_cli"
+name = "fintech_web_service"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Fintech Platform (HFT) CLI Application"
+description = "Fintech Platform (HFT) Web Service"
 repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
-
-[lib]
-path = "src/lib.rs"
-
-[[bin]]
-name = "fintech_cli"
-path = "src/main.rs"
 
 [dependencies]
 fintech_common = { path = "../fintech_common" }

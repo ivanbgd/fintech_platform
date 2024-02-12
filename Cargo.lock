@@ -14,7 +14,7 @@ name = "fintech_common"
 version = "0.1.0"
 
 [[package]]
-name = "fintech_web"
+name = "fintech_web_service"
 version = "0.1.0"
 dependencies = [
  "fintech_common",
