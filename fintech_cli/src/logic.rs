@@ -1,6 +1,6 @@
 use crate::constants::*;
 use crate::trading_platform::TradingPlatform;
-use fintech_common::core::types::{Order, Side};
+use fintech_common::types::{Order, Side};
 use std::io::{stdin, stdout, Write};
 
 pub fn main_loop() {
