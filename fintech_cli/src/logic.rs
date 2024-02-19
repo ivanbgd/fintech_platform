@@ -1,6 +1,8 @@
 use crate::constants::*;
 use crate::trading_platform::TradingPlatform;
+use fintech_common::errors::EMPTY_SIGNER_NAME;
 use fintech_common::types::{Order, Side};
+use fintech_common::validation;
 use std::io::{stdin, stdout, Write};
 
 pub fn main_loop() {
@@ -89,9 +91,9 @@ fn read_from_stdin(label: &str) -> Option<String> {
 ///
 /// Checks for:
 /// - An empty string.
-pub fn is_valid_name(signer: &str) -> bool {
-    if signer.trim().is_empty() {
-        eprintln!("[ERROR] Signer's name cannot be empty.");
+fn is_valid_name(signer: &str) -> bool {
+    if !validation::is_valid_name(signer) {
+        eprintln!("{}", EMPTY_SIGNER_NAME);
         false
     } else {
         true
@@ -283,6 +285,8 @@ pub fn print_accounts(trading_platform: &TradingPlatform) {
 /// The signer's name can consist of multiple words.
 /// We can wrap the signer's name in single or double quotes,
 /// but we don't have to use any quotes at all.
+///
+/// Prints the signer's balance.
 fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
     let words_len = words.len();
 
