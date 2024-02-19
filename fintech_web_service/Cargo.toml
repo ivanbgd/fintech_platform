@@ -11,3 +11,7 @@ categories.workspace = true
 
 [dependencies]
 fintech_common = { path = "../fintech_common" }
+pretty_env_logger = "*"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"

@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, Reverse};
 
 /// **A simplified side of a position ([`PartialOrder`]) or of an [`Order`]**
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum Side {
     /// Want to buy
     Buy,
@@ -20,7 +21,7 @@ pub enum Side {
 /// but it has a getter, `get_initial_amount`.
 ///
 /// Our implementation lacks the `symbol` field for simplicity.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Order {
     /// Highest price to buy at or lowest price to sell at, per unit, depending on the side
     pub price: u64,
@@ -81,7 +82,7 @@ impl Order {
 /// Each `PartialOrder` has its unique sequence number as part of its metadata.
 /// In case of two equal offers, the one with a lower sequence number takes precedence over the other one.
 /// This is because it came into the system (into the order book) first, and this is the rule that we apply.
-#[derive(Clone, Debug, Eq, Ord, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, Serialize)]
 pub struct PartialOrder {
     /// Price per unit. This gets stored in the receipt as the best price of a matched order.
     /// So, it may start as one value, and end as another, better, value.
@@ -147,7 +148,7 @@ impl PartialOrder {
 /// The live project's implementation works in the opposite way than my implementation,
 /// but only in case of selling. The buying case works in the same way.
 /// But, this means that their implementation is asymmetrical, and hence not fair.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, PartialOrd, Serialize)]
 pub struct Receipt {
     /// Sequence number
     pub ordinal: u64,
