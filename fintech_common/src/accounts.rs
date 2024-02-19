@@ -1,5 +1,5 @@
-use fintech_common::errors::AccountingError;
-use fintech_common::tx::Tx;
+use crate::errors::AccountingError;
+use crate::tx::Tx;
 use std::collections::BTreeMap;
 
 /// **A type for managing accounts and their current currency balance**

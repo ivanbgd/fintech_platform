@@ -1,8 +1,8 @@
 use crate::accounts::Accounts;
+use crate::core::types::{Order, PartialOrder, Receipt, Side};
 use crate::core::MatchingEngine;
-use fintech_common::core::types::{Order, PartialOrder, Receipt, Side};
-use fintech_common::errors::AccountingError;
-use fintech_common::tx::Tx;
+use crate::errors::AccountingError;
+use crate::tx::Tx;
 
 /// Manages accounts, validates, and orchestrates the processing of each order.
 pub struct TradingPlatform {

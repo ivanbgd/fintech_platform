@@ -1,6 +1,6 @@
 use crate::constants::*;
-use crate::trading_platform::TradingPlatform;
 use fintech_common::errors::EMPTY_SIGNER_NAME;
+use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::{Order, Side};
 use fintech_common::validation;
 use std::io::{stdin, stdout, Write};

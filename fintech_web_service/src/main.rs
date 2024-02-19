@@ -1,7 +1,7 @@
 //! The "Fintech Web Service's" entry point.
 
+use fintech_common::trading_platform::TradingPlatform;
 use fintech_web_service::handlers;
-use fintech_web_service::trading_platform::TradingPlatform;
 use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -11,7 +11,7 @@ use warp::Filter;
 #[tokio::main]
 async fn main() {
     if env::var_os("RUST_LOG").is_none() {
-        env::set_var("RUST_LOG", "fintech=debug");
+        env::set_var("RUST_LOG", "fintech=info");
     }
     pretty_env_logger::init();
 

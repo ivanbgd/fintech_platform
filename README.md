@@ -50,10 +50,10 @@ additional Rust web services, small and large.
 From the project (workspace) directory:
 - Non-web: `cargo run -p fintech_cli` or `cargo run` (default binary)
 - Web Service:
-  - With logging: `export RUST_LOG=<log_level> && cargo run -p fintech_web_service`,
+  - With a specified logging level: `export RUST_LOG=<log_level> && cargo run -p fintech_web_service`,
     where log level can be trace, debug, info, warn or error.
     - For example: `export RUST_LOG=trace && cargo run -p fintech_web_service`
-  - Without logging: `cargo run -p fintech_web_service`
+  - Default logging level is info: `cargo run -p fintech_web_service`
 
 Use `cargo run --release` for the Release mode instead of the default Debug mode.
 

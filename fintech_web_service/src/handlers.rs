@@ -1,8 +1,8 @@
 //! Handler functions
 
 use crate::errors::{WebServiceAccountingError, WebServiceStringError};
-use crate::trading_platform::TradingPlatform;
 use fintech_common::errors::EMPTY_SIGNER_NAME;
+use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::Order;
 use fintech_common::validation::is_valid_name;
 use fintech_common::{AccountBalanceRequest, AccountUpdateRequest, SendRequest};
