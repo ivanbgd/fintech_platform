@@ -45,6 +45,7 @@ additional Rust web services, small and large.
 - [Tokio](https://tokio.rs/), as an asynchronous runtime
 - [reqwest](https://docs.rs/reqwest/latest/reqwest/), as an HTTP client
 - [Serde](https://serde.rs/), for Rust data structures serialization and deserialization
+- [pretty_env_logger](https://crates.io/crates/pretty_env_logger), for pretty logging
 
 ## Running the Apps
 From the project (workspace) directory:

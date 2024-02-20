@@ -1,6 +1,7 @@
 //! The "Fintech Web Service's" entry point.
 
 use fintech_common::trading_platform::TradingPlatform;
+use fintech_common::{OrderBookByPriceRequest, OrderBookRequest};
 use fintech_web_service::handlers;
 use std::env;
 use std::sync::Arc;
@@ -48,18 +49,44 @@ async fn main() {
         .and(trading_platform_state.clone())
         .and_then(handlers::send);
 
-    let order = warp::path!("order")
+    let process_order = warp::path!("order")
         .and(warp::post())
         .and(warp::body::content_length_limit(1024 * 16))
         .and(warp::body::json())
         .and(trading_platform_state.clone())
-        .and_then(handlers::order);
+        .and_then(handlers::process_order);
+
+    let order_book = warp::path!("orderbook")
+        .and(warp::get())
+        .and(warp::query::<OrderBookRequest>())
+        .and(trading_platform_state.clone())
+        .and_then(handlers::order_book);
+
+    let order_book_by_price = warp::path!("orderbookbyprice")
+        .and(warp::get())
+        .and(warp::query::<OrderBookByPriceRequest>())
+        .and(trading_platform_state.clone())
+        .and_then(handlers::order_book_by_price);
+
+    let order_history = warp::path!("order" / "history")
+        .and(warp::get())
+        .and(trading_platform_state.clone())
+        .and_then(handlers::order_history);
+
+    let all_accounts = warp::path!("accounts")
+        .and(warp::get())
+        .and(trading_platform_state.clone())
+        .and_then(handlers::all_accounts);
 
     let routes = balance_of
         .or(deposit)
         .or(withdraw)
         .or(send)
-        .or(order)
+        .or(process_order)
+        .or(order_book)
+        .or(order_book_by_price)
+        .or(order_history)
+        .or(all_accounts)
         .with(log);
 
     // Start up the server
