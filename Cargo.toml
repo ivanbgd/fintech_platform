@@ -1,5 +1,5 @@
 [workspace]
-members = ["./fintech_cli", "./fintech_common", "./fintech_web_service"]
+members = ["./fintech_cli", "./fintech_common", "./fintech_web_client_cli", "./fintech_web_service"]
 default-members = ["./fintech_cli"]
 resolver = "2"
 
