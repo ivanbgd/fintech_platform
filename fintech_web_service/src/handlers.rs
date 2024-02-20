@@ -17,10 +17,14 @@ use warp::{Rejection, Reply};
 /// The `balance_of` handler
 ///
 /// Responds with the signer's balance.
+///
+/// POST
 pub async fn balance_of(
     request: AccountBalanceRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
+    log::debug!("balance_of; request = {:?}", request);
+
     // todo: extract into fn
     if !is_valid_name(&request.signer) {
         // todo: add a log msg
@@ -36,10 +40,14 @@ pub async fn balance_of(
 }
 
 /// The `deposit` handler
+///
+/// POST
 pub async fn deposit(
     request: AccountUpdateRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
+    log::debug!("deposit; request = {:?}", request);
+
     if !is_valid_name(&request.signer) {
         return Err(warp::reject::custom(WebServiceStringError(
             EMPTY_SIGNER_NAME.to_string(),
@@ -57,10 +65,14 @@ pub async fn deposit(
 }
 
 /// The `withdraw` handler
+///
+/// POST
 pub async fn withdraw(
     request: AccountUpdateRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
+    log::debug!("withdraw; request = {:?}", request);
+
     if !is_valid_name(&request.signer) {
         return Err(warp::reject::custom(WebServiceStringError(
             EMPTY_SIGNER_NAME.to_string(),
@@ -78,10 +90,14 @@ pub async fn withdraw(
 }
 
 /// The `send` handler
+///
+/// POST
 pub async fn send(
     request: SendRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
+    log::debug!("send; request = {:?}", request);
+
     if !is_valid_name(&request.sender) || !is_valid_name(&request.recipient) {
         return Err(warp::reject::custom(WebServiceStringError(
             EMPTY_SIGNER_NAME.to_string(),
@@ -99,10 +115,14 @@ pub async fn send(
 }
 
 /// The `process_order` handler
+///
+/// POST
 pub async fn process_order(
     order: Order,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
+    log::debug!("process_order; order = {:?}", order);
+
     if !is_valid_name(&order.signer) {
         return Err(warp::reject::custom(WebServiceStringError(
             EMPTY_SIGNER_NAME.to_string(),
@@ -115,32 +135,62 @@ pub async fn process_order(
     }
 }
 
+/// **Fetches the complete order book**
+///
 /// The `order_book` handler
 ///
-/// /orderbook?sort=true&desc=false
+/// Both sides are combined together.
+///
+/// Optionally `sort`s the book by the ordinal sequence number;
+/// `desc` stands for descending (considered only if `sort` is `true`).
+///
+/// If `sort` or `desc` are `None`, they are treated as `false`.
+///
+/// By default, the order book isn't sorted.
+///
+/// If sorting is requested, the order is ascending by default.
+///
+/// GET /orderbook (sort=false and desc=false by default)
+///
+/// GET /orderbook?sort=true&desc=true
 pub async fn order_book(
     request: OrderBookRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Infallible> {
+    log::debug!("order_book; request = {:?}", request);
     let book = trading_platform
         .lock()
         .await
-        .order_book(request.sort, request.desc);
+        .order_book(request.sort.unwrap_or(false), request.desc.unwrap_or(false));
     let response = warp::reply::json(&book);
     Ok(response)
 }
 
+/// **Fetches the complete order book sorted by price**
+///
 /// The `order_book_by_price` handler
 ///
-/// /orderbookbyprice?desc=false
+/// Both sides are combined together.
+///
+/// Sorted first by price points ascending;
+/// the optional query parameter `desc` is for descending order.
+///
+/// If `desc` isn't provided, it is treated as `false`.
+///
+/// Inside of a price point, always ordered ascending by the ordinal sequence number.
+///
+/// GET /orderbookbyprice (desc=false by default)
+///
+/// GET /orderbookbyprice?desc=true
 pub async fn order_book_by_price(
     request: OrderBookByPriceRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Infallible> {
+    log::debug!("order_book_by_price; request = {:?}", request);
     let book = trading_platform
         .lock()
         .await
-        .order_book_by_price(request.desc);
+        .order_book_by_price(request.desc.unwrap_or(false));
     let response = warp::reply::json(&book);
     Ok(response)
 }
@@ -148,9 +198,12 @@ pub async fn order_book_by_price(
 /// The `order_history` handler
 ///
 /// Responds with the entire ledger (all transactions ever) - transaction log - entire order history
+///
+/// GET /order/history
 pub async fn order_history(
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Infallible> {
+    log::debug!("order_history");
     let history = &trading_platform.lock().await.tx_log;
     let response = warp::reply::json(&history);
     Ok(response)
@@ -159,9 +212,12 @@ pub async fn order_history(
 /// The `all_accounts` handler
 ///
 /// Responds with all accounts and their balances
+///
+/// GET /accounts
 pub async fn all_accounts(
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Infallible> {
+    log::debug!("all_accounts");
     let accounts = &trading_platform.lock().await.accounts.accounts;
     let response = warp::reply::json(&accounts);
     Ok(response)

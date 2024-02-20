@@ -177,6 +177,7 @@ name = "fintech_web_service"
 version = "0.1.0"
 dependencies = [
  "fintech_common",
+ "log",
  "pretty_env_logger",
  "serde",
  "tokio",

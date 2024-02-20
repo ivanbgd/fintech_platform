@@ -21,7 +21,7 @@ pub enum Side {
 /// but it has a getter, `get_initial_amount`.
 ///
 /// Our implementation lacks the `symbol` field for simplicity.
-#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Order {
     /// Highest price to buy at or lowest price to sell at, per unit, depending on the side
     pub price: u64,

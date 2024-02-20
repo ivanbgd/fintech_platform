@@ -57,7 +57,7 @@ impl TradingPlatform {
         book
     }
 
-    /// **Fetches the complete order book**
+    /// **Fetches the complete order book sorted by price**
     ///
     /// Both sides are combined together.
     ///

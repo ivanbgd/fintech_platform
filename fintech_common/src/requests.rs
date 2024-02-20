@@ -2,31 +2,31 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AccountBalanceRequest {
     pub signer: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AccountUpdateRequest {
     pub signer: String,
     pub amount: u64,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SendRequest {
     pub sender: String,
     pub recipient: String,
     pub amount: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct OrderBookRequest {
-    pub sort: bool,
-    pub desc: bool,
+    pub sort: Option<bool>,
+    pub desc: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct OrderBookByPriceRequest {
-    pub desc: bool,
+    pub desc: Option<bool>,
 }
