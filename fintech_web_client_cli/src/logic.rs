@@ -5,7 +5,7 @@ use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::{Order, Side};
 use fintech_common::CliType;
 use fintech_common::{validation, AccountUpdateRequest};
-use reqwest::{Client, Url};
+use reqwest::{Client, StatusCode, Url};
 use std::error::Error;
 use std::io::{stdin, stdout, Write};
 
@@ -23,7 +23,7 @@ pub async fn main_loop(base_url: Url) -> Result<(), Box<dyn Error>> {
             match cmd.as_str() {
                 HELP | "h" => help(),
                 DEPOSIT | "d" => deposit(words, &base_url, &client).await?,
-                WITHDRAW | "w" => withdraw(words, &mut trading_platform),
+                WITHDRAW | "w" => withdraw(words, &base_url, &client).await?,
                 SEND | "s" => send(words, &mut trading_platform),
                 PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => print_ledger(&trading_platform),
                 ACCOUNTS | "a" => print_accounts(&trading_platform),
@@ -206,19 +206,20 @@ async fn deposit(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<()
 
     let signer = signer.to_string();
     if is_valid_name(&signer) {
-        let url = base_url.join("account/deposit")?; // todo ?
-        dbg!(&url);
+        let url = base_url.join("account/deposit")?;
         let response = client
             .post(url)
+            .header("Content-Type", "application/json")
             .json(&AccountUpdateRequest { signer, amount })
             .send()
             .await?;
 
-        dbg!(&response);
-        println!();
-        dbg!(&response.status());
-        // let tx = trading_platform.deposit(signer, amount);
-        // println!("{:?}", tx);
+        if response.status() == StatusCode::OK {
+            let response_body = response.text().await?;
+            println!("{}", response_body);
+        } else {
+            eprintln!("[ERROR] \"{}\"", response.text().await?);
+        }
     }
 
     Ok(())
@@ -248,25 +249,41 @@ async fn deposit(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<()
 ///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
-fn withdraw(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
+async fn withdraw(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<(), Box<dyn Error>> {
     let words_len = words.len();
 
     if words_len < 3 {
         println!("The withdraw command: {WITHDRAW} 'signer full name' <amount>");
-        return;
+        return Ok(());
     }
 
     let signer = words[1..(words_len - 1)].join(" ");
-    let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
+    let signer = signer
+        .trim_matches(|c| c == '\'' || c == '\"')
+        .trim()
+        .to_string();
 
     if let Ok(amount) = words[words_len - 1].parse::<u64>() {
-        if is_valid_name(signer) {
-            let tx = trading_platform.withdraw(signer, amount);
-            println!("{:?}", tx);
+        if is_valid_name(&signer) {
+            let url = base_url.join("account/withdraw")?;
+            let response = client
+                .post(url)
+                .json(&AccountUpdateRequest { signer, amount })
+                .send()
+                .await?;
+
+            if response.status() == StatusCode::OK {
+                let response_body = response.text().await?;
+                println!("{}", response_body);
+            } else {
+                eprintln!("[ERROR] \"{}\"", response.text().await?);
+            }
         }
     } else {
         cannot_parse_number(words[words_len - 1]);
     }
+
+    Ok(())
 }
 
 /// **Send funds from one account to another account**
@@ -275,7 +292,7 @@ fn withdraw(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// We can wrap the signer's and/or the recipient's name in single or double quotes,
 /// but we don't have to use any quotes at all.
 ///
-/// The withdraw (the sender's) account needs to exist in advance, naturally.
+/// The withdrawal (the sender's) account needs to exist in advance, naturally.
 /// If it doesn't exist, an error message will be output to
 /// the user, but the execution won't break.
 ///

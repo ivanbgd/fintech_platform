@@ -172,7 +172,7 @@ fn deposit(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// We can wrap the signer's name in single or double quotes,
 /// but we don't have to use any quotes at all.
 ///
-/// The withdraw account needs to exist in advance, naturally.
+/// The withdrawal account needs to exist in advance, naturally.
 /// If it doesn't exist, an error message will be output to
 /// the user, but the execution won't break.
 ///
