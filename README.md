@@ -19,7 +19,7 @@ for setting up accounts and manipulating data.
 You’ll create a matching engine that enables traders to find the best trading partners
 and showcases the blazing-fast core of the exchange platform.
 
-You’ll extend your Rust HTTP API by setting up a warp web service that will interact with
+You’ll extend your Rust HTTP API by setting up a [warp](https://crates.io/crates/warp) web service that will interact with
 an additional trading platform, by building a shared marketplace that will be a blueprint for
 additional Rust web services, small and large.
 
@@ -37,7 +37,7 @@ additional Rust web services, small and large.
     but I decided to keep the original one and add the new one.
   - This calls for a slightly different organization of code.
     Mainly, my common library is not exactly the same as their.
-- I use the above-mentioned input validation in the non-web CLI app,
+- I use the above-mentioned input validation in both CLI apps,
   as well as in the web service, as an example usage.
 
 ## The Most Notable Crates Used
@@ -55,6 +55,9 @@ From the project (workspace) directory:
     where log level can be trace, debug, info, warn or error.
     - For example: `export RUST_LOG=trace && cargo run -p fintech_web_service`
   - Default logging level is info: `cargo run -p fintech_web_service`
+- Web Client CLI:
+  - With a default web service URL: `cargo run -p fintech_web_client_cli`
+  - With a provided web service URL: `cargo run -p fintech_web_client_cli -- http://127.0.0.1:8080/`
 
 Use `cargo run --release` for the Release mode instead of the default Debug mode.
 
