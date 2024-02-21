@@ -6,4 +6,5 @@ pub enum AccountingError {
     AccountOverFunded(String, u64),
 }
 
-pub const EMPTY_SIGNER_NAME: &str = "[ERROR] Signer's name cannot be empty.";
+pub const SIGNER_NAME_NOT_VALID_MSG: &str = "The signer's name is not valid";
+pub const SIGNER_EMPTY_NAME_MSG: &str = "Signer's name cannot be empty.";

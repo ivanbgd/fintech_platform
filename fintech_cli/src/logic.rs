@@ -1,10 +1,12 @@
-use crate::constants::*;
-use fintech_common::errors::EMPTY_SIGNER_NAME;
+use fintech_common::cli::constants::*;
+use fintech_common::errors::SIGNER_NAME_NOT_VALID_MSG;
 use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::{Order, Side};
 use fintech_common::validation;
+use fintech_common::CliType;
 use std::io::{stdin, stdout, Write};
 
+// pub fn main_loop(cli_type: CliType) {
 pub fn main_loop() {
     let mut trading_platform = TradingPlatform::new();
 
@@ -92,11 +94,15 @@ fn read_from_stdin(label: &str) -> Option<String> {
 /// Checks for:
 /// - An empty string.
 fn is_valid_name(signer: &str) -> bool {
-    if !validation::is_valid_name(signer) {
-        eprintln!("{}", EMPTY_SIGNER_NAME);
-        false
-    } else {
-        true
+    match validation::is_valid_name(signer) {
+        Some(msg) => {
+            eprintln!(
+                "[ERROR] {}: \"{}\". {}",
+                SIGNER_NAME_NOT_VALID_MSG, signer, msg
+            );
+            false
+        }
+        None => true,
     }
 }
 
@@ -439,9 +445,9 @@ fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
 
 #[cfg(test)]
 mod tests {
-    use super::help_contents_full;
-    use super::help_contents_short;
-    use crate::constants::SEPARATOR;
+    use super::{help_contents_full, help_contents_short, is_valid_name};
+    // use crate::constants::SEPARATOR; todo
+    use fintech_common::cli::constants::SEPARATOR;
 
     #[test]
     fn test_help_contents() {
@@ -462,5 +468,15 @@ mod tests {
     fn test_separator() {
         let expected = "--".to_string();
         assert_eq!(SEPARATOR, expected);
+    }
+
+    #[test]
+    fn test_valid_name_passes() {
+        assert!(is_valid_name("Ivan"));
+    }
+
+    #[test]
+    fn test_empty_name_fails() {
+        assert!(!is_valid_name(""));
     }
 }

@@ -1,10 +1,10 @@
 //! Handler functions
 
 use crate::errors::{WebServiceAccountingError, WebServiceStringError};
-use fintech_common::errors::EMPTY_SIGNER_NAME;
+use fintech_common::errors::SIGNER_NAME_NOT_VALID_MSG;
 use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::Order;
-use fintech_common::validation::is_valid_name;
+use fintech_common::validation;
 use fintech_common::{
     AccountBalanceRequest, AccountUpdateRequest, OrderBookByPriceRequest, OrderBookRequest,
     SendRequest,
@@ -13,6 +13,76 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use warp::{Rejection, Reply};
+
+// todo: return Result<Rejection>?
+/// **Basic input validation for a signer's name**
+///
+/// Checks for:
+/// - An empty string.
+fn _is_valid_name(signer: &str) -> bool {
+    match validation::is_valid_name(signer) {
+        Some(msg) => {
+            log::warn!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
+            false
+        }
+        None => true,
+    }
+}
+
+// todo
+/// **Basic input validation for a signer's name**
+///
+/// Checks for:
+/// - An empty string.
+fn __is_valid_name(signer: &str) -> Option<Rejection> {
+    match validation::is_valid_name(signer) {
+        Some(msg) => {
+            let ret_msg = format!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
+            log::warn!("{}", ret_msg);
+            Some(warp::reject::custom(WebServiceStringError(ret_msg)))
+        }
+        None => None,
+    }
+}
+
+// todo
+/// **Basic input validation for a signer's name**
+///
+/// Checks for:
+/// - An empty string.
+fn ___is_valid_name(signer: &str) -> Option<String> {
+    match validation::is_valid_name(signer) {
+        Some(msg) => {
+            let ret_msg = format!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
+            log::warn!("{}", ret_msg);
+            Some(ret_msg)
+        }
+        None => None,
+    }
+}
+
+// todo
+/// **Basic input validation for a signer's name**
+///
+/// Checks for:
+/// - An empty string.
+fn is_valid_name(signer: &str) -> Result<(), Rejection> {
+    match validation::is_valid_name(signer) {
+        Some(msg) => {
+            let ret_msg = format!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
+            log::warn!("{}", ret_msg);
+            Err(warp::reject::custom(WebServiceStringError(ret_msg)))
+        }
+        None => Ok(()),
+    }
+}
+
+// todo
+fn x<T>() -> Result<T, Rejection> {
+    return Err(warp::reject::custom(WebServiceStringError(
+        "aaa".to_string(),
+    )));
+}
 
 /// The `balance_of` handler
 ///
@@ -25,12 +95,16 @@ pub async fn balance_of(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("balance_of; request = {:?}", request);
 
-    // todo: extract into fn
-    if !is_valid_name(&request.signer) {
-        // todo: add a log msg
-        return Err(warp::reject::custom(WebServiceStringError(
-            EMPTY_SIGNER_NAME.to_string(),
-        )));
+    // todo: remove completely, from all handlers?
+    // todo: if keep, return msg, too? i am now.
+    // if !is_valid_name(&request.signer) {
+    //     return Err(warp::reject::custom(WebServiceStringError(format!(
+    //         "{}: \"{}\"",
+    //         SIGNER_NAME_NOT_VALID_MSG, request.signer
+    //     ))));
+    // }
+    if let Some(rejection) = is_valid_name(&request.signer).err() {
+        return Err(rejection);
     }
 
     match trading_platform.lock().await.balance_of(&request.signer) {
@@ -48,10 +122,13 @@ pub async fn deposit(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("deposit; request = {:?}", request);
 
-    if !is_valid_name(&request.signer) {
-        return Err(warp::reject::custom(WebServiceStringError(
-            EMPTY_SIGNER_NAME.to_string(),
-        )));
+    // if !is_valid_name(&request.signer) {
+    //     return Err(warp::reject::custom(WebServiceStringError(
+    //         SIGNER_NAME_NOT_VALID_MSG.to_string(),
+    //     )));
+    // }
+    if let Some(rejection) = __is_valid_name(&request.signer) {
+        return Err(rejection);
     }
 
     match trading_platform
@@ -73,10 +150,8 @@ pub async fn withdraw(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("withdraw; request = {:?}", request);
 
-    if !is_valid_name(&request.signer) {
-        return Err(warp::reject::custom(WebServiceStringError(
-            EMPTY_SIGNER_NAME.to_string(),
-        )));
+    if let Some(msg) = ___is_valid_name(&request.signer) {
+        return Err(warp::reject::custom(WebServiceStringError(msg)));
     }
 
     match trading_platform
@@ -98,10 +173,16 @@ pub async fn send(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("send; request = {:?}", request);
 
-    if !is_valid_name(&request.sender) || !is_valid_name(&request.recipient) {
-        return Err(warp::reject::custom(WebServiceStringError(
-            EMPTY_SIGNER_NAME.to_string(),
-        )));
+    // if !is_valid_name(&request.sender) || !is_valid_name(&request.recipient) {
+    //     return Err(warp::reject::custom(WebServiceStringError(
+    //         SIGNER_NAME_NOT_VALID_MSG.to_string(),
+    //     )));
+    // }
+    if let Some(rejection) = is_valid_name(&request.sender).err() {
+        return Err(rejection);
+    }
+    if let Some(rejection) = is_valid_name(&request.recipient).err() {
+        return Err(rejection);
     }
 
     match trading_platform
@@ -123,9 +204,9 @@ pub async fn process_order(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("process_order; order = {:?}", order);
 
-    if !is_valid_name(&order.signer) {
+    if !_is_valid_name(&order.signer) {
         return Err(warp::reject::custom(WebServiceStringError(
-            EMPTY_SIGNER_NAME.to_string(),
+            SIGNER_NAME_NOT_VALID_MSG.to_string(),
         )));
     }
 
@@ -221,4 +302,19 @@ pub async fn all_accounts(
     let accounts = &trading_platform.lock().await.accounts.accounts;
     let response = warp::reply::json(&accounts);
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_name;
+
+    #[test]
+    fn test_valid_name_passes() {
+        assert!(is_valid_name("Ivan").is_ok());
+    }
+
+    #[test]
+    fn test_empty_name_fails() {
+        assert!(is_valid_name("").is_err());
+    }
 }
