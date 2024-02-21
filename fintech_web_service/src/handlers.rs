@@ -14,6 +14,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use warp::{Rejection, Reply};
 
+// TODO: POST requests perhaps don't need input validation. They come through request body, not URL like GET requests.
+
 // todo: return Result<Rejection>?
 /// **Basic input validation for a signer's name**
 ///
@@ -96,7 +98,7 @@ pub async fn balance_of(
     log::debug!("balance_of; request = {:?}", request);
 
     // todo: remove completely, from all handlers?
-    // todo: if keep, return msg, too? i am now.
+    // todo: if keep, return msg, too? i do now.
     // if !is_valid_name(&request.signer) {
     //     return Err(warp::reject::custom(WebServiceStringError(format!(
     //         "{}: \"{}\"",
