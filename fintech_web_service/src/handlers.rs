@@ -53,14 +53,13 @@ fn __is_valid_name(signer: &str) -> Option<Rejection> {
 /// Checks for:
 /// - An empty string.
 fn ___is_valid_name(signer: &str) -> Option<String> {
-    match validation::is_valid_name(signer) {
-        Some(msg) => {
-            let ret_msg = format!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
-            log::warn!("{}", ret_msg);
-            Some(ret_msg)
-        }
-        None => None,
+    if let Some(msg) = validation::is_valid_name(signer) {
+        let ret_msg = format!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
+        log::warn!("{}", ret_msg);
+        return Some(ret_msg);
     }
+
+    None
 }
 
 // todo
@@ -79,10 +78,10 @@ fn is_valid_name(signer: &str) -> Result<(), Rejection> {
     }
 }
 
-// todo
+// todo remove
 fn x<T>() -> Result<T, Rejection> {
     return Err(warp::reject::custom(WebServiceStringError(
-        "aaa".to_string(),
+        SIGNER_NAME_NOT_VALID_MSG.to_string(),
     )));
 }
 
@@ -99,7 +98,7 @@ pub async fn balance_of(
 
     // todo: remove completely, from all handlers?
     // todo: if keep, return msg, too? i do now.
-    // if !is_valid_name(&request.signer) {
+    // if !_is_valid_name(&request.signer) {
     //     return Err(warp::reject::custom(WebServiceStringError(format!(
     //         "{}: \"{}\"",
     //         SIGNER_NAME_NOT_VALID_MSG, request.signer
@@ -124,7 +123,7 @@ pub async fn deposit(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("deposit; request = {:?}", request);
 
-    // if !is_valid_name(&request.signer) {
+    // if !_is_valid_name(&request.signer) {
     //     return Err(warp::reject::custom(WebServiceStringError(
     //         SIGNER_NAME_NOT_VALID_MSG.to_string(),
     //     )));
@@ -175,7 +174,7 @@ pub async fn send(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("send; request = {:?}", request);
 
-    // if !is_valid_name(&request.sender) || !is_valid_name(&request.recipient) {
+    // if !_is_valid_name(&request.sender) || !_is_valid_name(&request.recipient) {
     //     return Err(warp::reject::custom(WebServiceStringError(
     //         SIGNER_NAME_NOT_VALID_MSG.to_string(),
     //     )));
