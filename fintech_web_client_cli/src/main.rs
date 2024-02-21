@@ -1,8 +1,16 @@
 //! The "Fintech Web Client CLI" app's entry point.
 
-// use fintech_cli::logic::main_loop;
+use fintech_common::CliType;
+use fintech_web_client_cli::logic::{get_base_url, main_loop};
+use std::error::Error;
 
 /// The "Fintech Web Client CLI" app's entry point.
-fn main() {
-    // main_loop();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let base_url = get_base_url(std::env::args().nth(1));
+
+    // main_loop(CliType::Web);
+    main_loop(base_url).await?;
+
+    Ok(())
 }

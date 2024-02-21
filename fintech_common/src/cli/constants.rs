@@ -1,4 +1,4 @@
-/// Commands
+/// CLI Commands
 
 pub const HELP: &str = "help";
 pub const DEPOSIT: &str = "deposit";
@@ -14,7 +14,7 @@ pub const ORDER_BOOK: &str = "orderbook";
 pub const ORDER_BOOK_BY_PRICE: &str = "orderbookbyprice";
 pub const QUIT: &str = "quit";
 
-/// Various constants
+/// Various CLI constants
 
 pub const PROMPT: &str = "> ";
 pub const SEPARATOR: &str = "--";

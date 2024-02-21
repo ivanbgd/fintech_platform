@@ -1,13 +1,18 @@
+use crate::DEFAULT_BASE_URL;
 use fintech_common::cli::constants::*;
 use fintech_common::errors::SIGNER_NAME_NOT_VALID_MSG;
 use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::{Order, Side};
-use fintech_common::validation;
 use fintech_common::CliType;
+use fintech_common::{validation, AccountUpdateRequest};
+use reqwest::{Client, Url};
+use std::error::Error;
 use std::io::{stdin, stdout, Write};
 
 // pub fn main_loop(cli_type: CliType) {
-pub fn main_loop() {
+pub async fn main_loop(base_url: Url) -> Result<(), Box<dyn Error>> {
+    let client = reqwest::Client::new();
+
     let mut trading_platform = TradingPlatform::new();
 
     loop {
@@ -17,7 +22,7 @@ pub fn main_loop() {
 
             match cmd.as_str() {
                 HELP | "h" => help(),
-                DEPOSIT | "d" => deposit(words, &mut trading_platform),
+                DEPOSIT | "d" => deposit(words, &base_url, &client).await?,
                 WITHDRAW | "w" => withdraw(words, &mut trading_platform),
                 SEND | "s" => send(words, &mut trading_platform),
                 PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => print_ledger(&trading_platform),
@@ -31,6 +36,8 @@ pub fn main_loop() {
             }
         }
     }
+
+    Ok(())
 }
 
 /// **Contains full variants of all existing commands.**
@@ -120,6 +127,43 @@ fn cannot_parse_number(word: &str) {
     );
 }
 
+/// **Get base URL**
+///
+/// Tries to create a URL from the provided argument.
+///
+/// If that is not possible, falls back to a default.
+///
+/// It returns a URL in any case.
+///
+/// This is meant to be a base URL for all operations.
+///
+/// - If the provided argument is the `None` variant,
+///   returns a default value as the base URL.
+/// - If it's a `String`, tries to parse it into URL.
+///   - If it's a valid URL string, returns it as URL.
+///   - If it's a malformed URL string, returns the default.
+///
+/// The default value is [`DEFAULT_BASE_URL`].
+pub fn get_base_url(base_url: Option<String>) -> Url {
+    let base_url = base_url.unwrap_or_else(|| {
+        println!(
+            "No CLI base URL provided; using default: {}",
+            DEFAULT_BASE_URL
+        );
+        DEFAULT_BASE_URL.into()
+    });
+
+    let base_url = Url::parse(base_url.as_str()).unwrap_or_else(|_| {
+        println!(
+            "Provided base URL could not be parsed; using default: {}",
+            DEFAULT_BASE_URL
+        );
+        Url::parse(DEFAULT_BASE_URL).unwrap()
+    });
+
+    base_url
+}
+
 /// **Deposit funds to an account**
 ///
 /// The signer's name can consist of multiple words.
@@ -141,12 +185,12 @@ fn cannot_parse_number(word: &str) {
 ///
 /// We could pattern-match it for a different output format and the message
 /// contents, but haven't done that here. Error is still printed.
-fn deposit(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
+async fn deposit(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<(), Box<dyn Error>> {
     let words_len = words.len();
 
     if words_len < 3 {
         println!("The deposit command: {DEPOSIT} 'signer full name' <amount>");
-        return;
+        return Ok(());
     }
 
     let signer = words[1..(words_len - 1)].join(" ");
@@ -156,14 +200,28 @@ fn deposit(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
         Ok(amount) => amount,
         Err(_err) => {
             cannot_parse_number(words[words_len - 1]);
-            return;
+            return Ok(());
         }
     };
 
-    if is_valid_name(signer) {
-        let tx = trading_platform.deposit(signer, amount);
-        println!("{:?}", tx);
+    let signer = signer.to_string();
+    if is_valid_name(&signer) {
+        let url = base_url.join("account/deposit")?; // todo ?
+        dbg!(&url);
+        let response = client
+            .post(url)
+            .json(&AccountUpdateRequest { signer, amount })
+            .send()
+            .await?;
+
+        dbg!(&response);
+        println!();
+        dbg!(&response.status());
+        // let tx = trading_platform.deposit(signer, amount);
+        // println!("{:?}", tx);
     }
+
+    Ok(())
 }
 
 /// **Withdraw funds from an account**
@@ -172,7 +230,7 @@ fn deposit(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// We can wrap the signer's name in single or double quotes,
 /// but we don't have to use any quotes at all.
 ///
-/// The withdraw account needs to exist in advance, naturally.
+/// The withdrawal account needs to exist in advance, naturally.
 /// If it doesn't exist, an error message will be output to
 /// the user, but the execution won't break.
 ///
@@ -217,7 +275,7 @@ fn withdraw(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// We can wrap the signer's and/or the recipient's name in single or double quotes,
 /// but we don't have to use any quotes at all.
 ///
-/// The withdrawal (the sender's) account needs to exist in advance, naturally.
+/// The withdraw (the sender's) account needs to exist in advance, naturally.
 /// If it doesn't exist, an error message will be output to
 /// the user, but the execution won't break.
 ///
@@ -445,7 +503,8 @@ fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
 
 #[cfg(test)]
 mod tests {
-    use super::{help_contents_full, help_contents_short, is_valid_name};
+    use super::{get_base_url, help_contents_full, help_contents_short, is_valid_name};
+    use crate::DEFAULT_BASE_URL;
     // use crate::constants::SEPARATOR; todo
     use fintech_common::cli::constants::SEPARATOR;
 
@@ -478,5 +537,42 @@ mod tests {
     #[test]
     fn test_empty_name_fails() {
         assert!(!is_valid_name(""));
+    }
+
+    #[test]
+    fn test_default_url_none() {
+        assert_eq!(get_base_url(None).to_string(), DEFAULT_BASE_URL);
+    }
+
+    #[test]
+    fn test_default_url_empty() {
+        assert_eq!(
+            get_base_url(Some("".to_string())).to_string(),
+            DEFAULT_BASE_URL
+        );
+    }
+
+    #[test]
+    fn test_default_url_bad() {
+        assert_eq!(
+            get_base_url(Some("https://333.333.333.333".to_string())).to_string(),
+            DEFAULT_BASE_URL
+        );
+    }
+
+    #[test]
+    fn test_default_url_valid() {
+        assert_eq!(
+            get_base_url(Some(DEFAULT_BASE_URL.to_string())).to_string(),
+            DEFAULT_BASE_URL
+        );
+    }
+
+    #[test]
+    fn test_valid_url() {
+        assert_eq!(
+            get_base_url(Some("http://127.0.0.1:3333".to_string())).to_string(),
+            "http://127.0.0.1:3333/"
+        );
     }
 }
