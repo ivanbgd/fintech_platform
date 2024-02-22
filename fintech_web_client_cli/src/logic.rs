@@ -77,7 +77,7 @@ pub fn get_base_url(base_url: Option<String>) -> Url {
     base_url
 }
 
-/// **Send a POST request for deposit and withdraw**
+/// **Send a POST request for `deposit` and `withdraw`**
 async fn account_update_request(
     client: &Client,
     base_url: &Url,
@@ -94,7 +94,7 @@ async fn account_update_request(
         .send()
         .await?;
 
-    if response.status() == StatusCode::OK {
+    if response.status().is_success() {
         let tx: Tx = response.json().await?;
         println!("{:?}", tx);
     } else {
@@ -265,7 +265,7 @@ async fn send(words: Vec<&str>, client: &Client, base_url: &Url) -> Result<(), B
                 .send()
                 .await?;
 
-            if response.status() == StatusCode::OK {
+            if response.status().is_success() {
                 let txs: (Tx, Tx) = response.json().await?;
                 println!("{:?}", txs);
             } else {
