@@ -3,10 +3,8 @@ use fintech_common::errors::SIGNER_NAME_NOT_VALID_MSG;
 use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::{Order, Side};
 use fintech_common::validation;
-use fintech_common::CliType;
 use std::io::{stdin, stdout, Write};
 
-// pub fn main_loop(cli_type: CliType) {
 pub fn main_loop() {
     let mut trading_platform = TradingPlatform::new();
 

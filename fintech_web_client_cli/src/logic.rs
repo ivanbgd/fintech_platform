@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::{stdin, stdout, Write};
 
-// pub fn main_loop(cli_type: CliType) {
 pub async fn main_loop(base_url: Url) -> Result<(), Box<dyn Error>> {
     let client = Client::new();
 
