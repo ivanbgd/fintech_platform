@@ -77,6 +77,7 @@ pub fn get_base_url(base_url: Option<String>) -> Url {
     base_url
 }
 
+/// **Send a POST request for deposit and withdraw**
 async fn account_update_request(
     client: &Client,
     base_url: &Url,
@@ -346,15 +347,23 @@ async fn print_single_account(
             .send()
             .await?;
 
-        if response.status() == StatusCode::OK {
-            let balance: u64 = response.json().await?;
-            println!(
-                r#"The client "{}" has the following balance: {}."#,
-                signer, balance
-            )
-        } else {
-            eprintln!(r#"The client "{}" doesn't exist."#, signer);
-            eprintln!("[ERROR] \"{}\"", response.text().await?);
+        match response.status().as_u16() {
+            200..=299 => {
+                let balance: u64 = response.json().await?;
+                println!(
+                    r#"The client "{}" has the following balance: {}."#,
+                    signer, balance
+                )
+            }
+            400..=599 => {
+                eprintln!(r#"The client "{}" doesn't exist."#, signer);
+                eprintln!(
+                    "[ERROR] {} \"{}\"",
+                    response.status(),
+                    response.text().await?
+                );
+            }
+            _ => println!("[ERROR] Unexpected status code: {}", response.status()),
         }
     }
 
