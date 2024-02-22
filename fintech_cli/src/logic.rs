@@ -22,7 +22,7 @@ pub fn main_loop() {
                 SEND | "s" => send(words, &mut trading_platform),
                 PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => print_ledger(&trading_platform),
                 ACCOUNTS | "a" => print_accounts(&trading_platform),
-                CLIENT | "c" => print_single_account(words, &trading_platform),
+                CLIENT | "c" => print_single_account(words, &mut trading_platform),
                 ORDER | "o" => order(words, &mut trading_platform),
                 ORDER_BOOK | "ob" => order_book(words, &trading_platform),
                 ORDER_BOOK_BY_PRICE | "obp" => order_book_by_price(words, &trading_platform),
@@ -273,7 +273,7 @@ fn send(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// **Print the entire ledger (all transactions ever) - transaction log**
 fn print_ledger(trading_platform: &TradingPlatform) {
     println!(
-        "The ledger (full transaction log): {:#?}",
+        "The ledger (full transaction log, order history): {:#?}",
         trading_platform.tx_log
     );
 }
@@ -293,7 +293,7 @@ pub fn print_accounts(trading_platform: &TradingPlatform) {
 /// but we don't have to use any quotes at all.
 ///
 /// Prints the signer's balance.
-fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
+fn print_single_account(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
     let words_len = words.len();
 
     if words_len < 2 {
@@ -305,14 +305,14 @@ fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
     let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
 
     if is_valid_name(signer) {
-        match trading_platform.accounts.accounts.get(signer) {
-            Some(balance) => {
+        match trading_platform.balance_of(signer) {
+            Ok(balance) => {
                 println!(
                     r#"The client "{}" has the following balance: {}."#,
                     signer, balance
                 )
             }
-            None => println!(r#"The client "{}" doesn't exist."#, signer),
+            Err(_) => println!(r#"The client "{}" doesn't exist."#, signer),
         }
     }
 }
