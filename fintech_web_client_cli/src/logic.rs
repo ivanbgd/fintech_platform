@@ -4,7 +4,7 @@ use fintech_common::cli::helpers::*;
 use fintech_common::requests::*;
 use fintech_common::tx::Tx;
 use fintech_common::types::{Order, PartialOrder, Receipt, Side};
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{header, Client, StatusCode, Url};
 use std::collections::BTreeMap;
 use std::error::Error;
 
@@ -341,6 +341,7 @@ async fn print_single_account(
         let url = base_url.join("account")?;
         let response = client
             .post(url)
+            .header("Content-Type", "application/json")
             .json(&AccountBalanceRequest {
                 signer: signer.clone(),
             })
@@ -476,8 +477,18 @@ async fn order_book(
     }
 
     let url = base_url.join("orderbook")?;
+    let mut headers = header::HeaderMap::new();
+    headers.insert(
+        header::USER_AGENT,
+        header::HeaderValue::from_static("fintech_web_client_cli"),
+    );
+    headers.insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/json"),
+    );
     let response = client
         .get(url)
+        .headers(headers)
         .query(&OrderBookRequest { sort, desc })
         .send()
         .await?;
