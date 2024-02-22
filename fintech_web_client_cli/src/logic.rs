@@ -494,7 +494,7 @@ async fn order_book(
         .await?;
 
     if response.status() == StatusCode::OK {
-        let book: Vec<PartialOrder> = response.json().await?;
+        let book = response.json::<Vec<PartialOrder>>().await?;
         println!("\nThe order book: {:#?}", book);
     } else {
         eprintln!("[ERROR] \"{}\"", response.text().await?);

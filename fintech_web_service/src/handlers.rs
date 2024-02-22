@@ -28,7 +28,7 @@ fn is_valid_name(signer: &str) -> Result<(), Rejection> {
 
 /// The `deposit` handler
 ///
-/// POST
+/// POST /account/deposit
 pub async fn deposit(
     request: AccountUpdateRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
@@ -47,7 +47,7 @@ pub async fn deposit(
 
 /// The `withdraw` handler
 ///
-/// POST
+/// POST /account/withdraw
 pub async fn withdraw(
     request: AccountUpdateRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
@@ -66,7 +66,7 @@ pub async fn withdraw(
 
 /// The `send` handler
 ///
-/// POST
+/// POST /account/send
 pub async fn send(
     request: AccountSendRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
@@ -94,7 +94,7 @@ pub async fn send(
 ///
 /// Responds with the signer's balance.
 ///
-/// POST
+/// POST /account
 pub async fn balance_of(
     request: AccountBalanceRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
@@ -113,7 +113,7 @@ pub async fn balance_of(
 
 /// The `process_order` handler
 ///
-/// POST
+/// POST /order
 pub async fn process_order(
     order: Order,
     trading_platform: Arc<Mutex<TradingPlatform>>,
