@@ -21,13 +21,6 @@ async fn main() {
     let trading_platform = Arc::new(Mutex::new(TradingPlatform::new()));
     let trading_platform_state = warp::any().map(move || trading_platform.clone());
 
-    let balance_of = warp::path!("account")
-        .and(warp::post())
-        .and(warp::body::content_length_limit(1024 * 16))
-        .and(warp::body::json())
-        .and(trading_platform_state.clone())
-        .and_then(handlers::balance_of);
-
     let deposit = warp::path!("account" / "deposit")
         .and(warp::post())
         .and(warp::body::content_length_limit(1024 * 16))
@@ -48,6 +41,13 @@ async fn main() {
         .and(warp::body::json())
         .and(trading_platform_state.clone())
         .and_then(handlers::send);
+
+    let balance_of = warp::path!("account")
+        .and(warp::post())
+        .and(warp::body::content_length_limit(1024 * 16))
+        .and(warp::body::json())
+        .and(trading_platform_state.clone())
+        .and_then(handlers::balance_of);
 
     let process_order = warp::path!("order")
         .and(warp::post())
@@ -78,10 +78,10 @@ async fn main() {
         .and(trading_platform_state.clone())
         .and_then(handlers::all_accounts);
 
-    let routes = balance_of
-        .or(deposit)
+    let routes = deposit
         .or(withdraw)
         .or(send)
+        .or(balance_of)
         .or(process_order)
         .or(order_book)
         .or(order_book_by_price)

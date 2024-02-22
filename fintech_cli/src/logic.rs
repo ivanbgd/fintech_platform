@@ -273,7 +273,7 @@ fn send(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// **Print the entire ledger (all transactions ever) - transaction log**
 fn print_ledger(trading_platform: &TradingPlatform) {
     println!(
-        "The ledger (full transaction log, order history): {:#?}",
+        "The ledger (full transaction log, complete order history): {:#?}",
         trading_platform.tx_log
     );
 }
@@ -408,7 +408,7 @@ fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
     }
 
     println!(
-        "The order book: {:#?}",
+        "\nThe order book: {:#?}",
         trading_platform.order_book(sort, desc)
     );
 }
@@ -438,7 +438,7 @@ fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
     }
 
     println!(
-        "The order book: {:#?}",
+        "The order book sorted by price points: {:#?}",
         trading_platform.order_book_by_price(desc)
     );
 }

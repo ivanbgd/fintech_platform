@@ -2,13 +2,10 @@
 
 use crate::errors::{WebServiceAccountingError, WebServiceStringError};
 use fintech_common::errors::SIGNER_NAME_NOT_VALID_MSG;
+use fintech_common::requests::*;
 use fintech_common::trading_platform::TradingPlatform;
 use fintech_common::types::Order;
 use fintech_common::validation;
-use fintech_common::{
-    AccountBalanceRequest, AccountUpdateRequest, OrderBookByPriceRequest, OrderBookRequest,
-    SendRequest,
-};
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -85,35 +82,6 @@ fn x<T>() -> Result<T, Rejection> {
     )));
 }
 
-/// The `balance_of` handler
-///
-/// Responds with the signer's balance.
-///
-/// POST
-pub async fn balance_of(
-    request: AccountBalanceRequest,
-    trading_platform: Arc<Mutex<TradingPlatform>>,
-) -> Result<impl Reply, Rejection> {
-    log::debug!("balance_of; request = {:?}", request);
-
-    // todo: remove completely, from all handlers?
-    // todo: if keep, return msg, too? i do now.
-    // if !_is_valid_name(&request.signer) {
-    //     return Err(warp::reject::custom(WebServiceStringError(format!(
-    //         "{}: \"{}\"",
-    //         SIGNER_NAME_NOT_VALID_MSG, request.signer
-    //     ))));
-    // }
-    if let Some(rejection) = is_valid_name(&request.signer).err() {
-        return Err(rejection);
-    }
-
-    match trading_platform.lock().await.balance_of(&request.signer) {
-        Ok(balance) => Ok(warp::reply::json(balance)),
-        Err(acc_err) => Err(warp::reject::custom(WebServiceAccountingError(acc_err))),
-    }
-}
-
 /// The `deposit` handler
 ///
 /// POST
@@ -169,7 +137,7 @@ pub async fn withdraw(
 ///
 /// POST
 pub async fn send(
-    request: SendRequest,
+    request: AccountSendRequest,
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
     log::debug!("send; request = {:?}", request);
@@ -196,6 +164,35 @@ pub async fn send(
     }
 }
 
+/// The `balance_of` handler
+///
+/// Responds with the signer's balance.
+///
+/// POST
+pub async fn balance_of(
+    request: AccountBalanceRequest,
+    trading_platform: Arc<Mutex<TradingPlatform>>,
+) -> Result<impl Reply, Rejection> {
+    log::debug!("balance_of; request = {:?}", request);
+
+    // todo: remove completely, from all handlers?
+    // todo: if keep, return msg, too? i do now.
+    // if !_is_valid_name(&request.signer) {
+    //     return Err(warp::reject::custom(WebServiceStringError(format!(
+    //         "{}: \"{}\"",
+    //         SIGNER_NAME_NOT_VALID_MSG, request.signer
+    //     ))));
+    // }
+    if let Some(rejection) = is_valid_name(&request.signer).err() {
+        return Err(rejection);
+    }
+
+    match trading_platform.lock().await.balance_of(&request.signer) {
+        Ok(balance) => Ok(warp::reply::json(balance)),
+        Err(acc_err) => Err(warp::reject::custom(WebServiceAccountingError(acc_err))),
+    }
+}
+
 /// The `process_order` handler
 ///
 /// POST
@@ -215,6 +212,34 @@ pub async fn process_order(
         Ok(receipt) => Ok(warp::reply::json(&receipt)),
         Err(acc_err) => Err(warp::reject::custom(WebServiceAccountingError(acc_err))),
     }
+}
+
+/// The `order_history` handler
+///
+/// Responds with the entire ledger (all transactions ever) - transaction log - entire order history
+///
+/// GET /order/history
+pub async fn order_history(
+    trading_platform: Arc<Mutex<TradingPlatform>>,
+) -> Result<impl Reply, Infallible> {
+    log::debug!("order_history");
+    let history = &trading_platform.lock().await.tx_log;
+    let response = warp::reply::json(&history);
+    Ok(response)
+}
+
+/// The `all_accounts` handler
+///
+/// Responds with all accounts and their balances
+///
+/// GET /accounts
+pub async fn all_accounts(
+    trading_platform: Arc<Mutex<TradingPlatform>>,
+) -> Result<impl Reply, Infallible> {
+    log::debug!("all_accounts");
+    let accounts = &trading_platform.lock().await.accounts.accounts;
+    let response = warp::reply::json(&accounts);
+    Ok(response)
 }
 
 /// **Fetches the complete order book**
@@ -274,34 +299,6 @@ pub async fn order_book_by_price(
         .await
         .order_book_by_price(request.desc.unwrap_or(false));
     let response = warp::reply::json(&book);
-    Ok(response)
-}
-
-/// The `order_history` handler
-///
-/// Responds with the entire ledger (all transactions ever) - transaction log - entire order history
-///
-/// GET /order/history
-pub async fn order_history(
-    trading_platform: Arc<Mutex<TradingPlatform>>,
-) -> Result<impl Reply, Infallible> {
-    log::debug!("order_history");
-    let history = &trading_platform.lock().await.tx_log;
-    let response = warp::reply::json(&history);
-    Ok(response)
-}
-
-/// The `all_accounts` handler
-///
-/// Responds with all accounts and their balances
-///
-/// GET /accounts
-pub async fn all_accounts(
-    trading_platform: Arc<Mutex<TradingPlatform>>,
-) -> Result<impl Reply, Infallible> {
-    log::debug!("all_accounts");
-    let accounts = &trading_platform.lock().await.accounts.accounts;
-    let response = warp::reply::json(&accounts);
     Ok(response)
 }
 

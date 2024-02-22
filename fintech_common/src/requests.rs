@@ -14,19 +14,19 @@ pub struct AccountUpdateRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct SendRequest {
+pub struct AccountSendRequest {
     pub sender: String,
     pub recipient: String,
     pub amount: u64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OrderBookRequest {
     pub sort: Option<bool>,
     pub desc: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OrderBookByPriceRequest {
     pub desc: Option<bool>,
 }

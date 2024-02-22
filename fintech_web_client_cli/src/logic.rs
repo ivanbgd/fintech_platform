@@ -1,19 +1,17 @@
 use crate::DEFAULT_BASE_URL;
 use fintech_common::cli::constants::*;
 use fintech_common::errors::SIGNER_NAME_NOT_VALID_MSG;
-use fintech_common::trading_platform::TradingPlatform;
-use fintech_common::types::{Order, Side};
-use fintech_common::CliType;
-use fintech_common::{validation, AccountUpdateRequest};
+use fintech_common::tx::Tx;
+use fintech_common::types::{Order, PartialOrder, Receipt, Side};
+use fintech_common::{requests::*, validation};
 use reqwest::{Client, StatusCode, Url};
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::{stdin, stdout, Write};
 
 // pub fn main_loop(cli_type: CliType) {
 pub async fn main_loop(base_url: Url) -> Result<(), Box<dyn Error>> {
-    let client = reqwest::Client::new();
-
-    let mut trading_platform = TradingPlatform::new();
+    let client = Client::new();
 
     loop {
         if let Some(line) = read_from_stdin(PROMPT) {
@@ -22,15 +20,19 @@ pub async fn main_loop(base_url: Url) -> Result<(), Box<dyn Error>> {
 
             match cmd.as_str() {
                 HELP | "h" => help(),
-                DEPOSIT | "d" => deposit(words, &base_url, &client).await?,
-                WITHDRAW | "w" => withdraw(words, &base_url, &client).await?,
-                SEND | "s" => send(words, &mut trading_platform),
-                PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => print_ledger(&trading_platform),
-                ACCOUNTS | "a" => print_accounts(&trading_platform),
-                CLIENT | "c" => print_single_account(words, &trading_platform),
-                ORDER | "o" => order(words, &mut trading_platform),
-                ORDER_BOOK | "ob" => order_book(words, &trading_platform),
-                ORDER_BOOK_BY_PRICE | "obp" => order_book_by_price(words, &trading_platform),
+                DEPOSIT | "d" => deposit(words, &client, &base_url).await?,
+                WITHDRAW | "w" => withdraw(words, &client, &base_url).await?,
+                SEND | "s" => send(words, &client, &base_url).await?,
+                PRINT | LEDGER | TX_LOG | "p" | "l" | "t" => {
+                    print_ledger(&client, &base_url).await?
+                }
+                ACCOUNTS | "a" => print_accounts(&client, &base_url).await?,
+                CLIENT | "c" => print_single_account(words, &client, &base_url).await?,
+                ORDER | "o" => order(words, &client, &base_url).await?,
+                ORDER_BOOK | "ob" => order_book(words, &client, &base_url).await?,
+                ORDER_BOOK_BY_PRICE | "obp" => {
+                    order_book_by_price(words, &client, &base_url).await?
+                }
                 QUIT | "q" => break,
                 _ => println!("Unrecognized command; try `help`."),
             }
@@ -164,6 +166,32 @@ pub fn get_base_url(base_url: Option<String>) -> Url {
     base_url
 }
 
+async fn account_update_request(
+    client: &Client,
+    base_url: &Url,
+    path: &str,
+    signer: &str,
+    amount: u64,
+) -> Result<(), Box<dyn Error>> {
+    let signer = signer.to_string();
+    let url = base_url.join(path)?;
+
+    let response = client
+        .post(url)
+        .json(&AccountUpdateRequest { signer, amount })
+        .send()
+        .await?;
+
+    if response.status() == StatusCode::OK {
+        let tx: Tx = response.json().await?;
+        println!("{:?}", tx);
+    } else {
+        eprintln!("[ERROR] \"{}\"", response.text().await?);
+    }
+
+    Ok(())
+}
+
 /// **Deposit funds to an account**
 ///
 /// The signer's name can consist of multiple words.
@@ -185,7 +213,7 @@ pub fn get_base_url(base_url: Option<String>) -> Url {
 ///
 /// We could pattern-match it for a different output format and the message
 /// contents, but haven't done that here. Error is still printed.
-async fn deposit(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<(), Box<dyn Error>> {
+async fn deposit(words: Vec<&str>, client: &Client, base_url: &Url) -> Result<(), Box<dyn Error>> {
     let words_len = words.len();
 
     if words_len < 3 {
@@ -204,22 +232,8 @@ async fn deposit(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<()
         }
     };
 
-    let signer = signer.to_string();
     if is_valid_name(&signer) {
-        let url = base_url.join("account/deposit")?;
-        let response = client
-            .post(url)
-            .header("Content-Type", "application/json")
-            .json(&AccountUpdateRequest { signer, amount })
-            .send()
-            .await?;
-
-        if response.status() == StatusCode::OK {
-            let response_body = response.text().await?;
-            println!("{}", response_body);
-        } else {
-            eprintln!("[ERROR] \"{}\"", response.text().await?);
-        }
+        account_update_request(client, base_url, "account/deposit", signer, amount).await?;
     }
 
     Ok(())
@@ -249,7 +263,7 @@ async fn deposit(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<()
 ///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
-async fn withdraw(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<(), Box<dyn Error>> {
+async fn withdraw(words: Vec<&str>, client: &Client, base_url: &Url) -> Result<(), Box<dyn Error>> {
     let words_len = words.len();
 
     if words_len < 3 {
@@ -258,26 +272,11 @@ async fn withdraw(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<(
     }
 
     let signer = words[1..(words_len - 1)].join(" ");
-    let signer = signer
-        .trim_matches(|c| c == '\'' || c == '\"')
-        .trim()
-        .to_string();
+    let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
 
     if let Ok(amount) = words[words_len - 1].parse::<u64>() {
         if is_valid_name(&signer) {
-            let url = base_url.join("account/withdraw")?;
-            let response = client
-                .post(url)
-                .json(&AccountUpdateRequest { signer, amount })
-                .send()
-                .await?;
-
-            if response.status() == StatusCode::OK {
-                let response_body = response.text().await?;
-                println!("{}", response_body);
-            } else {
-                eprintln!("[ERROR] \"{}\"", response.text().await?);
-            }
+            account_update_request(client, base_url, "account/withdraw", signer, amount).await?;
         }
     } else {
         cannot_parse_number(words[words_len - 1]);
@@ -316,12 +315,12 @@ async fn withdraw(words: Vec<&str>, base_url: &Url, client: &Client) -> Result<(
 ///
 /// We could pattern-match them for a different output format and the message
 /// contents, but haven't done that here. Errors are still printed.
-fn send(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
+async fn send(words: Vec<&str>, client: &Client, base_url: &Url) -> Result<(), Box<dyn Error>> {
     let words_len = words.len();
 
     if (words_len < 4) || !words.contains(&SEPARATOR) {
         println!("The send command: {SEND} 'sender full name' {SEPARATOR} 'recipient full name' <amount>");
-        return;
+        return Ok(());
     }
 
     let to_pos = words
@@ -330,35 +329,75 @@ fn send(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
         .expect(format!("The send command must contain '{}'.", SEPARATOR).as_str());
 
     let sender = words[1..to_pos].join(" ");
-    let sender = sender.trim_matches(|c| c == '\'' || c == '\"').trim();
+    let sender = sender
+        .trim_matches(|c| c == '\'' || c == '\"')
+        .trim()
+        .to_string();
 
     let recipient = words[to_pos + 1..words_len - 1].join(" ");
-    let recipient = recipient.trim_matches(|c| c == '\'' || c == '\"').trim();
+    let recipient = recipient
+        .trim_matches(|c| c == '\'' || c == '\"')
+        .trim()
+        .to_string();
 
     if let Ok(amount) = words[words_len - 1].parse::<u64>() {
-        if is_valid_name(sender) && is_valid_name(recipient) {
-            let txs = trading_platform.send(sender, recipient, amount);
-            println!("{:?}", txs);
+        if is_valid_name(&sender) && is_valid_name(&recipient) {
+            let url = base_url.join("account/send")?;
+            let response = client
+                .post(url)
+                .json(&AccountSendRequest {
+                    sender,
+                    recipient,
+                    amount,
+                })
+                .send()
+                .await?;
+
+            if response.status() == StatusCode::OK {
+                let txs: (Tx, Tx) = response.json().await?;
+                println!("{:?}", txs);
+            } else {
+                eprintln!("[ERROR] \"{}\"", response.text().await?);
+            }
         }
     } else {
         cannot_parse_number(words[words_len - 1]);
     }
+
+    Ok(())
 }
 
 /// **Print the entire ledger (all transactions ever) - transaction log**
-fn print_ledger(trading_platform: &TradingPlatform) {
-    println!(
-        "The ledger (full transaction log): {:#?}",
-        trading_platform.tx_log
-    );
+async fn print_ledger(client: &Client, base_url: &Url) -> Result<(), Box<dyn Error>> {
+    let url = base_url.join("order/history")?;
+    let response = client.get(url).send().await?;
+
+    if response.status() == StatusCode::OK {
+        let history: Vec<Tx> = response.json().await?;
+        println!(
+            "The ledger (full transaction log, complete order history): {:#?}",
+            history
+        );
+    } else {
+        eprintln!("[ERROR] \"{}\"", response.text().await?);
+    }
+
+    Ok(())
 }
 
 /// **Print all accounts and their balances**
-pub fn print_accounts(trading_platform: &TradingPlatform) {
-    println!(
-        "Accounts and their balances: {:#?}",
-        trading_platform.accounts.accounts
-    );
+pub async fn print_accounts(client: &Client, base_url: &Url) -> Result<(), Box<dyn Error>> {
+    let url = base_url.join("accounts")?;
+    let response = client.get(url).send().await?;
+
+    if response.status() == StatusCode::OK {
+        let accounts: BTreeMap<String, u64> = response.json().await?;
+        println!("Accounts and their balances: {:#?}", accounts);
+    } else {
+        eprintln!("[ERROR] \"{}\"", response.text().await?);
+    }
+
+    Ok(())
 }
 
 /// **Print a single requested client**
@@ -368,28 +407,47 @@ pub fn print_accounts(trading_platform: &TradingPlatform) {
 /// but we don't have to use any quotes at all.
 ///
 /// Prints the signer's balance.
-fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
+async fn print_single_account(
+    words: Vec<&str>,
+    client: &Client,
+    base_url: &Url,
+) -> Result<(), Box<dyn Error>> {
     let words_len = words.len();
 
     if words_len < 2 {
         println!("The client command: {CLIENT} 'signer full name'");
-        return;
+        return Ok(());
     }
 
     let signer = words[1..].join(" ");
-    let signer = signer.trim_matches(|c| c == '\'' || c == '\"').trim();
+    let signer = signer
+        .trim_matches(|c| c == '\'' || c == '\"')
+        .trim()
+        .to_string();
 
-    if is_valid_name(signer) {
-        match trading_platform.accounts.accounts.get(signer) {
-            Some(balance) => {
-                println!(
-                    r#"The client "{}" has the following balance: {}."#,
-                    signer, balance
-                )
-            }
-            None => println!(r#"The client "{}" doesn't exist."#, signer),
+    if is_valid_name(&signer) {
+        let url = base_url.join("account")?;
+        let response = client
+            .post(url)
+            .json(&AccountBalanceRequest {
+                signer: signer.clone(),
+            })
+            .send()
+            .await?;
+
+        if response.status() == StatusCode::OK {
+            let balance: u64 = response.json().await?;
+            println!(
+                r#"The client "{}" has the following balance: {}."#,
+                signer, balance
+            )
+        } else {
+            eprintln!(r#"The client "{}" doesn't exist."#, signer);
+            eprintln!("[ERROR] \"{}\"", response.text().await?);
         }
     }
+
+    Ok(())
 }
 
 /// **Create and process an order**
@@ -410,12 +468,12 @@ fn print_single_account(words: Vec<&str>, trading_platform: &TradingPlatform) {
 /// - Account not found, `AccountingError::AccountNotFound`;
 /// - Account has insufficient funds, `AccountingError::AccountUnderFunded`;
 /// - Account would be over-funded, `AccountingError::AccountOverFunded`.
-fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
+async fn order(words: Vec<&str>, client: &Client, base_url: &Url) -> Result<(), Box<dyn Error>> {
     let words_len = words.len();
 
     if words_len < 5 {
         println!("The order command: {ORDER} 'signer full name' <side> <price> <amount>");
-        return;
+        return Ok(());
     }
 
     let signer = words[1..(words_len - 3)].join(" ");
@@ -426,7 +484,7 @@ fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
         "sell" | "ask" => Side::Sell,
         _ => {
             eprintln!(r#"[ERROR] Side can be either "buy"/"bid" or "sell"/"ask"."#);
-            return;
+            return Ok(());
         }
     };
 
@@ -434,7 +492,7 @@ fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
         Ok(price) => price,
         Err(_err) => {
             cannot_parse_number(words[words_len - 2]);
-            return;
+            return Ok(());
         }
     };
 
@@ -442,15 +500,26 @@ fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
         Ok(amount) => amount,
         Err(_err) => {
             cannot_parse_number(words[words_len - 1]);
-            return;
+            return Ok(());
         }
     };
 
     if is_valid_name(signer) {
         let order = Order::new(price, amount, side, signer.to_string());
-        let receipt = trading_platform.process_order(order);
-        println!("{:?}", receipt);
+
+        let url = base_url.join("order")?;
+        let response = client.post(url).json(&order).send().await?;
+
+        if response.status() == StatusCode::OK {
+            let receipt: Receipt = response.json().await?;
+            println!("{:?}", receipt);
+        } else {
+            eprintln!(r#"The client "{}" doesn't exist."#, signer);
+            eprintln!("[ERROR] \"{}\"", response.text().await?);
+        }
     }
+
+    Ok(())
 }
 
 /// **Display the order book**
@@ -465,27 +534,42 @@ fn order(words: Vec<&str>, trading_platform: &mut TradingPlatform) {
 /// By default, the order book isn't sorted.
 ///
 /// If sorting is requested, the order is ascending by default.
-fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
+async fn order_book(
+    words: Vec<&str>,
+    client: &Client,
+    base_url: &Url,
+) -> Result<(), Box<dyn Error>> {
     println!(r#"The order book command: {ORDER_BOOK} ["sort"] ["desc"]"#);
     println!("By default, the order book isn't sorted.");
     println!("The optional sorting is done by ordinals, and is ascending by default.");
 
     let words_len = words.len();
 
-    let mut sort = false;
+    let mut sort = Some(false);
     if words_len > 1 && words[1] == "sort" {
-        sort = true;
+        sort = Some(true);
     }
 
-    let mut desc = false;
+    let mut desc = Some(false);
     if words_len > 2 && words[2] == "desc" {
-        desc = true;
+        desc = Some(true);
     }
 
-    println!(
-        "The order book: {:#?}",
-        trading_platform.order_book(sort, desc)
-    );
+    let url = base_url.join("orderbook")?;
+    let response = client
+        .get(url)
+        .query(&OrderBookRequest { sort, desc })
+        .send()
+        .await?;
+
+    if response.status() == StatusCode::OK {
+        let book: Vec<PartialOrder> = response.json().await?;
+        println!("\nThe order book: {:#?}", book);
+    } else {
+        eprintln!("[ERROR] \"{}\"", response.text().await?);
+    }
+
+    Ok(())
 }
 
 /// **Display the order book sorted by price points**
@@ -497,7 +581,11 @@ fn order_book(words: Vec<&str>, trading_platform: &TradingPlatform) {
 /// Sorted first by price points ascending; optional `desc` is for descending order.
 ///
 /// Inside of a price point, always ordered ascending by the ordinal sequence number.
-fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
+async fn order_book_by_price(
+    words: Vec<&str>,
+    client: &Client,
+    base_url: &Url,
+) -> Result<(), Box<dyn Error>> {
     println!(r#"The order book by price command: {ORDER_BOOK_BY_PRICE} ["desc"]"#);
     println!(
         "Sorted first by price points in ascending order; \
@@ -507,15 +595,26 @@ fn order_book_by_price(words: Vec<&str>, trading_platform: &TradingPlatform) {
 
     let words_len = words.len();
 
-    let mut desc = false;
+    let mut desc = Some(false);
     if words_len > 1 && words[1] == "desc" {
-        desc = true;
+        desc = Some(true);
     }
 
-    println!(
-        "The order book: {:#?}",
-        trading_platform.order_book_by_price(desc)
-    );
+    let url = base_url.join("orderbookbyprice")?;
+    let response = client
+        .get(url)
+        .query(&OrderBookByPriceRequest { desc })
+        .send()
+        .await?;
+
+    if response.status() == StatusCode::OK {
+        let book: Vec<PartialOrder> = response.json().await?;
+        println!("\nThe order book sorted by price points: {:#?}", book);
+    } else {
+        eprintln!("[ERROR] \"{}\"", response.text().await?);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
