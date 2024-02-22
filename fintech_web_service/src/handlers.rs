@@ -11,55 +11,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use warp::{Rejection, Reply};
 
-// TODO: POST requests perhaps don't need input validation. They come through request body, not URL like GET requests.
-
-// todo: return Result<Rejection>?
-/// **Basic input validation for a signer's name**
-///
-/// Checks for:
-/// - An empty string.
-fn _is_valid_name(signer: &str) -> bool {
-    match validation::is_valid_name(signer) {
-        Some(msg) => {
-            log::warn!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
-            false
-        }
-        None => true,
-    }
-}
-
-// todo
-/// **Basic input validation for a signer's name**
-///
-/// Checks for:
-/// - An empty string.
-fn __is_valid_name(signer: &str) -> Option<Rejection> {
-    match validation::is_valid_name(signer) {
-        Some(msg) => {
-            let ret_msg = format!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
-            log::warn!("{}", ret_msg);
-            Some(warp::reject::custom(WebServiceStringError(ret_msg)))
-        }
-        None => None,
-    }
-}
-
-// todo
-/// **Basic input validation for a signer's name**
-///
-/// Checks for:
-/// - An empty string.
-fn ___is_valid_name(signer: &str) -> Option<String> {
-    if let Some(msg) = validation::is_valid_name(signer) {
-        let ret_msg = format!("{}: \"{}\". {}", SIGNER_NAME_NOT_VALID_MSG, signer, msg);
-        log::warn!("{}", ret_msg);
-        return Some(ret_msg);
-    }
-
-    None
-}
-
-// todo
 /// **Basic input validation for a signer's name**
 ///
 /// Checks for:
@@ -75,13 +26,6 @@ fn is_valid_name(signer: &str) -> Result<(), Rejection> {
     }
 }
 
-// todo remove
-fn x<T>() -> Result<T, Rejection> {
-    return Err(warp::reject::custom(WebServiceStringError(
-        SIGNER_NAME_NOT_VALID_MSG.to_string(),
-    )));
-}
-
 /// The `deposit` handler
 ///
 /// POST
@@ -90,15 +34,6 @@ pub async fn deposit(
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
     log::debug!("deposit; request = {:?}", request);
-
-    // if !_is_valid_name(&request.signer) {
-    //     return Err(warp::reject::custom(WebServiceStringError(
-    //         SIGNER_NAME_NOT_VALID_MSG.to_string(),
-    //     )));
-    // }
-    if let Some(rejection) = __is_valid_name(&request.signer) {
-        return Err(rejection);
-    }
 
     match trading_platform
         .lock()
@@ -119,10 +54,6 @@ pub async fn withdraw(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("withdraw; request = {:?}", request);
 
-    if let Some(msg) = ___is_valid_name(&request.signer) {
-        return Err(warp::reject::custom(WebServiceStringError(msg)));
-    }
-
     match trading_platform
         .lock()
         .await
@@ -142,11 +73,6 @@ pub async fn send(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("send; request = {:?}", request);
 
-    // if !_is_valid_name(&request.sender) || !_is_valid_name(&request.recipient) {
-    //     return Err(warp::reject::custom(WebServiceStringError(
-    //         SIGNER_NAME_NOT_VALID_MSG.to_string(),
-    //     )));
-    // }
     if let Some(rejection) = is_valid_name(&request.sender).err() {
         return Err(rejection);
     }
@@ -175,14 +101,6 @@ pub async fn balance_of(
 ) -> Result<impl Reply, Rejection> {
     log::debug!("balance_of; request = {:?}", request);
 
-    // todo: remove completely, from all handlers?
-    // todo: if keep, return msg, too? i do now.
-    // if !_is_valid_name(&request.signer) {
-    //     return Err(warp::reject::custom(WebServiceStringError(format!(
-    //         "{}: \"{}\"",
-    //         SIGNER_NAME_NOT_VALID_MSG, request.signer
-    //     ))));
-    // }
     if let Some(rejection) = is_valid_name(&request.signer).err() {
         return Err(rejection);
     }
@@ -201,12 +119,6 @@ pub async fn process_order(
     trading_platform: Arc<Mutex<TradingPlatform>>,
 ) -> Result<impl Reply, Rejection> {
     log::debug!("process_order; order = {:?}", order);
-
-    if !_is_valid_name(&order.signer) {
-        return Err(warp::reject::custom(WebServiceStringError(
-            SIGNER_NAME_NOT_VALID_MSG.to_string(),
-        )));
-    }
 
     match trading_platform.lock().await.process_order(order) {
         Ok(receipt) => Ok(warp::reply::json(&receipt)),
